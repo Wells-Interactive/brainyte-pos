@@ -43,11 +43,11 @@ Unlike traditional POS systems filled with unnecessary modules, Brainyte Restaur
 
 <div align="center">
 
-| Login | Tables | Menu | Order |
+| Login | Tables | Order Confirm | Summary |
 |:------:|:------:|:----:|:-----:|
 | <img src="assets/beer_screen.png" width="220"> | <img src="assets/table_screen.png" width="220"> | <img src="assets/confirm_order.png" width="220"> | <img src="assets/total_screen.png" width="220"> |
 
-| Kitchen | Bar | Confirmation | Dashboard |
+| Kitchen | Beer | Grill | Water |
 |:--------:|:---:|:------------:|:---------:|
 | <img src="assets/menu_screen.png" width="220"> | <img src="assets/quantity_add.png" width="220"> | <img src="assets/quantity_add_2.png" width="220"> | <img src="assets/water_screen.png" width="220"> |
 
