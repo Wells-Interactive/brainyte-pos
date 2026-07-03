@@ -33,14 +33,6 @@ Unlike traditional POS systems filled with unnecessary modules, Brainyte Restaur
 
 # 📱 Current Screens
 
-## Waiter Screen
-
-<img src="assets/menu_screen.png" width="350">
-
----
-
-# 📱 Current Screens
-
 <div align="center">
 
 | Login | Tables | Order Confirm | Summary |
