@@ -1,0 +1,23 @@
+# Documentation
+docs/
+
+# Uploads
+uploads/
+
+# Environment
+.env
+
+# Dependencies
+vendor/
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
