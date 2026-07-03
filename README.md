@@ -49,7 +49,7 @@ Unlike traditional POS systems filled with unnecessary modules, Brainyte Restaur
 
 | Kitchen | Bar | Confirmation | Dashboard |
 |:--------:|:---:|:------------:|:---------:|
-| <img src="menu_screen.png" width="220"> | <img src="assets/quantity_add.png" width="220"> | <img src="assets/quantity_add_2.png" width="220"> | <img src="assets/water_screen.png" width="220"> |
+| <img src="assets/menu_screen.png" width="220"> | <img src="assets/quantity_add.png" width="220"> | <img src="assets/quantity_add_2.png" width="220"> | <img src="assets/water_screen.png" width="220"> |
 
 </div>
 
