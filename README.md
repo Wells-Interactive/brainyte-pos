@@ -39,11 +39,19 @@ Unlike traditional POS systems filled with unnecessary modules, Brainyte Restaur
 
 ---
 
-## Table Screen
+# 📱 Current Screens
 
-<img src="assets/table_screen.png" width="350">
+<div align="center">
 
----
+| Login | Tables | Menu | Order |
+|:------:|:------:|:----:|:-----:|
+| <img src="assets/beer_screen.png" width="220"> | <img src="assets/table_screen.png" width="220"> | <img src="assets/confirm_order.png" width="220"> | <img src="assets/total_screen.png" width="220"> |
+
+| Kitchen | Bar | Confirmation | Dashboard |
+|:--------:|:---:|:------------:|:---------:|
+| <img src="menu_screen.png" width="220"> | <img src="assets/quantity_add.png" width="220"> | <img src="assets/quantity_add_2.png" width="220"> | <img src="assets/water_screen.png" width="220"> |
+
+</div>
 
 # ✨ Features
 
