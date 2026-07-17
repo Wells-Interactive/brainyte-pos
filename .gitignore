@@ -1,8 +1,9 @@
+# Ignore only sensitive configuration
+includes/db.php
+includes/config.php
+
 # Documentation
 docs/
-
-# Important
-includes/
 
 # Uploads
 uploads/
