@@ -45,19 +45,21 @@ require_once __DIR__ . '/../includes/utils.php';
                 </div>
             </div>
             <div class="menu-tabs">
-                <button class="tab-button active" data-category="rice">Rice</button>
-                <button class="tab-button" data-category="pepper-soup">Pepper Soup</button>
+                 <button class="tab-button" data-category="beer">Beer</button>
+                 <button class="tab-button" data-category="soft-drinks">Soft Drinks</button>
+                <button class="tab-button" data-category="malt">Malts</button>
+                 <button class="tab-button" data-category="pepper-soup">Pepper Soup</button>
                 <button class="tab-button" data-category="grills">Grills</button>
                 <button class="tab-button" data-category="soups">Soups</button>
                 <button class="tab-button" data-category="swallow">Swallow</button>
+                <button class="tab-button active" data-category="rice">Rice</button>
                 <button class="tab-button" data-category="extras">Extras</button>
-                <button class="tab-button" data-category="beer">Beer</button>
-                <button class="tab-button" data-category="malt">Malt</button>
-                <button class="tab-button" data-category="soft-drinks">Soft Drinks</button>
+
+                
                 <button class="tab-button" data-category="water">Water</button>
                 <button class="tab-button" data-category="energy-drinks">Energy Drinks</button>
                 <button class="tab-button" data-category="juice">Juice</button>
-                <button class="tab-button" data-category="spirits">Spirits</button>
+                                <button class="tab-button" data-category="spirits">Spirits</button>
                 <button class="tab-button" data-category="ready-to-drink">Ready To Drink</button>
             </div>
             <div id="menuList" class="menu-list"></div>

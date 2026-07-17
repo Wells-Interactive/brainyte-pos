@@ -37,14 +37,13 @@ $role = $loggedIn ?: 'guest';
             <a href="Waiter/index.php">Waiter</a>
             <a href="Kitchen/index.php">Kitchen</a>
             <a href="Bar/index.php">Bar</a>
-            <a href="docs/IMPLEMENTATION.md">Docs</a>
         </nav>
     </header>
 
     <main class="page-grid">
         <section class="hero-card">
             <h1>6th June POS</h1>
-            <p>Touch-friendly, mobile-first point of sale system with live kitchen and bar updates.</p>
+            <p>Touch-friendly, mobile-first point of sale system.</p>
             <div class="status-pill">Current session: <strong><?= safe_text($role) ?></strong></div>
             <?php if ($loggedIn): ?>
                 <div class="info-box">Logged in as <strong><?= safe_text($username) ?></strong> (<?= safe_text($role) ?>). <a href="Login/logout.php">Logout</a></div>
