@@ -53,6 +53,8 @@ $fallbackItems = [
     ['id' => 703, 'name' => 'Coleslaw', 'description' => 'Fresh coleslaw served cold.', 'price' => 800.00, 'category' => 'extras'],
     ['id' => 704, 'name' => 'Salad', 'description' => 'Fresh salad with greens and vegetables.', 'price' => 900.00, 'category' => 'extras'],
     ['id' => 705, 'name' => 'French Fries', 'description' => 'Crispy fries served hot and salted.', 'price' => 1000.00, 'category' => 'extras'],
+    ['id' => 706, 'name' => 'Marlboro Red', 'description' => 'Premium cigarette pack.', 'price' => 1500.00, 'category' => 'cigarettes'],
+    ['id' => 707, 'name' => 'Royal Classic', 'description' => 'Classic cigarette pack.', 'price' => 1400.00, 'category' => 'cigarettes'],
 ];
 
 $items = $fallbackItems;
@@ -109,7 +111,7 @@ if ($method === 'POST' || $method === 'PUT') {
             $price = isset($body['price']) ? (float)$body['price'] : 0.0;
             $category = trim((string)($body['category'] ?? ''));
             $available = isset($body['available']) ? (int)$body['available'] : 1;
-            $allowedCategories = ['beer', 'malt', 'soft-drinks', 'water', 'energy-drinks', 'juice', 'spirits', 'ready-to-drink', 'rice', 'pepper-soup', 'grills', 'soups', 'swallow', 'extras'];
+            $allowedCategories = ['beer', 'malt', 'soft-drinks', 'water', 'energy-drinks', 'juice', 'spirits', 'ready-to-drink', 'rice', 'pepper-soup', 'grills', 'soups', 'swallow', 'extras', 'cigarettes'];
 
             if ($name === '' || $description === '' || $price <= 0 || $category === '' || !in_array($category, $allowedCategories, true)) {
                 json_response(['error' => 'Name, description, price and a valid category are required'], 400);

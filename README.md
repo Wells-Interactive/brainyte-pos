@@ -37,11 +37,16 @@ Unlike traditional POS systems filled with unnecessary modules, Brainyte Restaur
 
 | Login | Tables | Order Confirm | Summary |
 |:------:|:------:|:----:|:-----:|
-| <img src="assets/login_screen.jpg" width="220"> | <img src="assets/table_screen.png" width="220"> | <img src="assets/confirm_order.png" width="220"> | <img src="assets/total_screen.png" width="220"> |
+| <img src="assets/images/login_screen.jpg" width="220"> | <img src="assets/images/table_screen.png" width="220"> | <img src="assets/images/confirm_order.png" width="220"> | <img src="assets/images/total_screen.png" width="220"> |
 
 | Kitchen | Beer | Grill | Water |
 |:--------:|:---:|:------------:|:---------:|
-| <img src="assets/menu_screen.png" width="220"> | <img src="assets/quantity_add.png" width="220"> | <img src="assets/quantity_add_2.png" width="220"> | <img src="assets/water_screen.png" width="220"> |
+| <img src="assets/images/menu_screen.png" width="220"> | <img src="assets/images/quantity_add.png" width="220"> | <img src="assets/images/quantity_add_2.png" width="220"> | <img src="assets/images/water_screen.png" width="220"> |
+
+| Admin Add | Admin Dash | Admin Item | Admin Price |
+|:--------:|:---:|:------------:|:---------:|
+<img src="assets/images/add_item.png" width="220"> | <img src="assets/images/admin_menu.png" width="220"> | <img src="assets/images/add_item.png" width="220"> | <img src="assets/images/update price.png" width="220"> |
+
 
 </div>
 

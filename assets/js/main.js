@@ -30,8 +30,15 @@ const adminDashboard = document.getElementById('adminDashboard');
 const adminTotalRevenue = document.getElementById('adminTotalRevenue');
 const adminCompletedOrders = document.getElementById('adminCompletedOrders');
 const adminItemsSold = document.getElementById('adminItemsSold');
+const adminBarOrders = document.getElementById('adminBarOrders');
+const adminKitchenOrders = document.getElementById('adminKitchenOrders');
+const adminPendingOrders = document.getElementById('adminPendingOrders');
+const adminSummaryDay = document.getElementById('adminSummaryDay');
+const adminSummaryWeek = document.getElementById('adminSummaryWeek');
+const adminSummaryMonth = document.getElementById('adminSummaryMonth');
 const adminSalesTable = document.getElementById('adminSalesTable');
 const adminTopItems = document.getElementById('adminTopItems');
+const adminLiveTables = document.getElementById('adminLiveTables');
 const adminItemCategory = document.getElementById('adminItemCategory');
 const adminItemSelect = document.getElementById('adminItemSelect');
 const adminAddMenuItem = document.getElementById('adminAddMenuItem');
@@ -40,8 +47,7 @@ const adminMenuStatus = document.getElementById('adminMenuStatus');
 
 const adminCategories = [
     'beer', 'malt', 'soft-drinks', 'water', 'energy-drinks', 'juice', 'spirits', 'ready-to-drink',
-    'rice', 'pepper-soup', 'grills', 'soups', 'swallow', 'extras',
-];
+    'rice', 'pepper-soup', 'grills', 'soups', 'swallow', 'extras', 'cigarettes' ];
 
 function sanitizeHtml(value) {
     return String(value ?? '')
@@ -86,12 +92,26 @@ async function loadAdminStats() {
         adminTotalRevenue.textContent = data.total_revenue != null ? new Intl.NumberFormat('en-NG', {style: 'currency', currency: 'NGN'}).format(data.total_revenue) : '₦0.00';
         adminCompletedOrders.textContent = data.completed_orders ?? 0;
         adminItemsSold.textContent = data.items_sold ?? 0;
+        adminBarOrders.textContent = data.total_bar_orders ?? 0;
+        adminKitchenOrders.textContent = data.total_kitchen_orders ?? 0;
+        adminPendingOrders.textContent = data.pending_orders ?? 0;
+        adminSummaryDay.textContent = data.summary_day != null ? new Intl.NumberFormat('en-NG', {style: 'currency', currency: 'NGN'}).format(data.summary_day) : '₦0.00';
+        adminSummaryWeek.textContent = data.summary_week != null ? new Intl.NumberFormat('en-NG', {style: 'currency', currency: 'NGN'}).format(data.summary_week) : '₦0.00';
+        adminSummaryMonth.textContent = data.summary_month != null ? new Intl.NumberFormat('en-NG', {style: 'currency', currency: 'NGN'}).format(data.summary_month) : '₦0.00';
         const topItems = Array.isArray(data.top_items) ? data.top_items : [];
         if (adminTopItems) {
             adminTopItems.innerHTML = topItems.length > 0
                 ? `<ul>${topItems.map((item) => `<li>${sanitizeHtml(item.item_name)} — ${sanitizeHtml(item.quantity_sold)} sold</li>`).join('')}</ul>`
                 : '<p class="message">No sales yet.</p>';
         }
+        adminLiveTables.innerHTML = Array.isArray(data.tables) && data.tables.length > 0
+            ? data.tables.map((table) => `
+                <div class="table-card status-${sanitizeHtml(table.status || 'available')}">
+                    <strong>${sanitizeHtml(table.name)}</strong>
+                    <span class="status">${sanitizeHtml(table.status || 'available')}</span>
+                </div>
+            `).join('')
+            : '<p class="message">No table status data found.</p>';
         adminSalesTable.innerHTML = Array.isArray(data.sales) && data.sales.length > 0
             ? `
                 <table class="admin-sales-table">

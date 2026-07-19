@@ -21,16 +21,28 @@ if ($method === 'GET') {
                 json_response(['error' => 'Forbidden'], 403);
             }
 
+            date_default_timezone_set('Africa/Lagos');
+            $now = date('Y-m-d H:i:s');
+            $todayStart = date('Y-m-d 00:00:00', strtotime($now));
+            $weekStart = date('Y-m-d 00:00:00', strtotime('-6 days', strtotime($todayStart)));
+            $monthStart = date('Y-m-01 00:00:00', strtotime($now));
+
             try {
-                $revenueStmt = $pdo->query(
-                    'SELECT SUM(oi.unit_price * oi.quantity) AS total_revenue,
-                            SUM(oi.quantity) AS total_items,
-                            COUNT(DISTINCT oi.order_id) AS completed_orders
-                     FROM order_items oi
-                     JOIN orders o ON o.id = oi.order_id
-                     WHERE o.status = "completed"'
+                $summaryStmt = $pdo->query(
+                    'SELECT
+                        COALESCE(SUM(CASE WHEN o.created_at >= "' . $todayStart . '" THEN oi.unit_price * oi.quantity ELSE 0 END), 0) AS day_revenue,
+                        COALESCE(SUM(CASE WHEN o.created_at >= "' . $weekStart . '" THEN oi.unit_price * oi.quantity ELSE 0 END), 0) AS week_revenue,
+                        COALESCE(SUM(CASE WHEN o.created_at >= "' . $monthStart . '" THEN oi.unit_price * oi.quantity ELSE 0 END), 0) AS month_revenue,
+                        COALESCE(SUM(CASE WHEN o.status = "completed" THEN oi.unit_price * oi.quantity ELSE 0 END), 0) AS total_revenue,
+                        COALESCE(SUM(CASE WHEN o.status = "completed" THEN oi.quantity ELSE 0 END), 0) AS total_items,
+                        COALESCE(COUNT(DISTINCT CASE WHEN o.status = "completed" THEN oi.order_id END), 0) AS completed_orders,
+                        COALESCE(COUNT(DISTINCT CASE WHEN oi.routed_to = "bar" THEN oi.order_id END), 0) AS total_bar_orders,
+                        COALESCE(COUNT(DISTINCT CASE WHEN oi.routed_to = "kitchen" THEN oi.order_id END), 0) AS total_kitchen_orders,
+                        COALESCE(COUNT(DISTINCT CASE WHEN o.status = "pending" THEN o.id END), 0) AS pending_orders
+                    FROM order_items oi
+                    JOIN orders o ON o.id = oi.order_id'
                 );
-                $summary = $revenueStmt->fetch();
+                $summary = $summaryStmt->fetch();
 
                 $salesStmt = $pdo->query(
                     'SELECT o.id AS order_id, o.table_id, o.updated_at AS completed_at,
@@ -50,19 +62,33 @@ if ($method === 'GET') {
                      FROM order_items oi
                      JOIN menu_items mi ON mi.id = oi.menu_item_id
                      JOIN orders o ON o.id = oi.order_id
-                     WHERE o.status = "completed"
+                     WHERE o.status IN ("completed", "served", "ready", "preparing", "pending")
                      GROUP BY mi.id, mi.name
                      ORDER BY quantity_sold DESC, item_name ASC
                      LIMIT 10'
                 );
                 $topItems = $topItemsStmt->fetchAll();
 
+                $tablesStmt = $pdo->query('SELECT id, name, status FROM restaurant_tables ORDER BY id');
+                $tables = $tablesStmt->fetchAll();
+                $tables = array_map(static function (array $table): array {
+                    $status = strtolower((string)($table['status'] ?? 'available'));
+                    return ['id' => (int)$table['id'], 'name' => (string)($table['name'] ?? 'Table ' . $table['id']), 'status' => in_array($status, ['available', 'occupied', 'reserved', 'closed'], true) ? $status : 'available'];
+                }, $tables);
+
                 json_response([
                     'total_revenue' => (float)($summary['total_revenue'] ?? 0),
                     'completed_orders' => (int)($summary['completed_orders'] ?? 0),
                     'items_sold' => (int)($summary['total_items'] ?? 0),
+                    'total_bar_orders' => (int)($summary['total_bar_orders'] ?? 0),
+                    'total_kitchen_orders' => (int)($summary['total_kitchen_orders'] ?? 0),
+                    'pending_orders' => (int)($summary['pending_orders'] ?? 0),
+                    'summary_day' => (float)($summary['day_revenue'] ?? 0),
+                    'summary_week' => (float)($summary['week_revenue'] ?? 0),
+                    'summary_month' => (float)($summary['month_revenue'] ?? 0),
                     'sales' => $sales,
                     'top_items' => $topItems,
+                    'tables' => $tables,
                 ]);
             } catch (Throwable $exception) {
                 json_response(['error' => 'Unable to load statistics'], 500);

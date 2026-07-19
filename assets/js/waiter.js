@@ -17,7 +17,7 @@ const tabs = Array.from(document.querySelectorAll('.tab-button'));
 let selectedTable = null;
 let orderItems = [];
 let currentMenuItems = [];
-let currentCategory = 'rice';
+let currentCategory = 'water';
 const VAT_RATE = 0.00;
 
 const categoryLabels = {
@@ -35,6 +35,7 @@ const categoryLabels = {
     'soups': 'Soups',
     'swallow': 'Swallow',
     'extras': 'Extras',
+    'cigarettes': 'Cigarettes',
 };
 
 const fallbackMenuItems = {
@@ -67,9 +68,9 @@ async function fetchTables() {
     const data = await response.json();
     tableGrid.innerHTML = data.tables
         .map((table) => `
-            <button type="button" class="table-card" data-id="${table.id}" data-name="${table.name}">
+            <button type="button" class="table-card status-${table.status || 'available'}" data-id="${table.id}" data-name="${table.name}">
                 <strong>${table.name}</strong>
-                <span class="status">${table.status}</span>
+                <span class="status">${table.status || 'available'}</span>
             </button>`)
         .join('');
 
@@ -91,7 +92,7 @@ function selectTable(tableId, tableName) {
     updateTotals();
 }
 
-async function fetchMenu(category = 'rice') {
+async function fetchMenu(category = 'water') {
     currentCategory = category;
     menuList.innerHTML = '<div class="menu-message">Loading menu...</div>';
 
@@ -343,7 +344,7 @@ function showConfirmation() {
         <div class="confirmation-row"><span>Instructions:</span><strong>${instructionText}</strong></div>
         ${rows}
         <div class="confirmation-row"><span>Subtotal:</span><strong>${formatCurrency(subtotal)}</strong></div>
-        <div class="confirmation-row"><span>VAT (7.5%):</span><strong>${formatCurrency(vat)}</strong></div>
+        <div class="confirmation-row"><span>VAT (0.0%):</span><strong>${formatCurrency(vat)}</strong></div>
         <div class="confirmation-row"><span>Grand Total:</span><strong>${formatCurrency(grandTotal)}</strong></div>
     `;
     confirmationDialog.classList.remove('hidden');
@@ -360,7 +361,6 @@ async function submitOrder() {
 
     const payload = {
         table_id: selectedTable,
-        waiter_id: 1,
         instructions: instructionsInput.value.trim(),
         items: orderItems.map((item) => ({
             menu_item_id: item.menu_item_id,
@@ -385,6 +385,7 @@ async function submitOrder() {
         orderFeedback.textContent = 'Order sent successfully!';
         orderItems = [];
         instructionsInput.value = '';
+        await fetchTables();
         updateTotals();
         renderOrderSummary();
         updateMenuCardState();

@@ -339,6 +339,26 @@ button:disabled,
     background: rgba(38, 208, 125, 0.14);
 }
 
+.table-card.status-available {
+    border-color: rgba(38, 208, 125, 0.55);
+    background: rgba(38, 208, 125, 0.16);
+}
+
+.table-card.status-occupied {
+    border-color: rgba(222, 73, 73, 0.7);
+    background: rgba(222, 73, 73, 0.16);
+}
+
+.table-card.status-reserved {
+    border-color: rgba(54, 128, 255, 0.75);
+    background: rgba(54, 128, 255, 0.16);
+}
+
+.table-card.status-closed {
+    border-color: rgba(146, 146, 146, 0.6);
+    background: rgba(146, 146, 146, 0.14);
+}
+
 .table-card strong {
     font-size: 1rem;
 }

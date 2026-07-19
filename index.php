@@ -99,10 +99,38 @@ $role = $loggedIn ?: 'guest';
                     <h3>Items Sold</h3>
                     <p id="adminItemsSold">0</p>
                 </div>
+                <div class="card admin-stat">
+                    <h3>Total Bar Orders</h3>
+                    <p id="adminBarOrders">0</p>
+                </div>
+                <div class="card admin-stat">
+                    <h3>Total Kitchen Orders</h3>
+                    <p id="adminKitchenOrders">0</p>
+                </div>
+                <div class="card admin-stat">
+                    <h3>Pending Orders</h3>
+                    <p id="adminPendingOrders">0</p>
+                </div>
+                <div class="card admin-stat">
+                    <h3>Summary for the Day</h3>
+                    <p id="adminSummaryDay">₦0.00</p>
+                </div>
+                <div class="card admin-stat">
+                    <h3>Summary for the Week</h3>
+                    <p id="adminSummaryWeek">₦0.00</p>
+                </div>
+                <div class="card admin-stat">
+                    <h3>Summary for the Month</h3>
+                    <p id="adminSummaryMonth">₦0.00</p>
+                </div>
             </div>
             <div class="card">
                 <h3>Highest Selling Items</h3>
                 <div id="adminTopItems" class="table-card"></div>
+            </div>
+            <div class="card">
+                <h3>Live Table Status</h3>
+                <div id="adminLiveTables" class="table-grid"></div>
             </div>
             <div id="adminSalesTable" class="table-card"></div>
             <div class="admin-controls">

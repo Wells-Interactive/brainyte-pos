@@ -39,28 +39,27 @@ require_once __DIR__ . '/../includes/utils.php';
                     <div id="orderSummary" class="order-summary"></div>
                     <div class="summary-totals">
                         <div><span>Subtotal</span><strong id="subtotalAmount">₦0.00</strong></div>
-                        <div><span>VAT (7.5%)</span><strong id="vatAmount">₦0.00</strong></div>
+                        <div><span>VAT (0.0%)</span><strong id="vatAmount">₦0.00</strong></div>
                         <div><span>Grand Total</span><strong id="grandTotalAmount">₦0.00</strong></div>
                     </div>
                 </div>
             </div>
             <div class="menu-tabs">
-                 <button class="tab-button" data-category="beer">Beer</button>
-                 <button class="tab-button" data-category="soft-drinks">Soft Drinks</button>
+                <button class="tab-button" data-category="beer">Beer</button>
+                <button class="tab-button" data-category="soft-drinks">Soft Drinks</button>
                 <button class="tab-button" data-category="malt">Malts</button>
-                 <button class="tab-button" data-category="pepper-soup">Pepper Soup</button>
+                <button class="tab-button" data-category="pepper-soup">Pepper Soup</button>
                 <button class="tab-button" data-category="grills">Grills</button>
                 <button class="tab-button" data-category="soups">Soups</button>
                 <button class="tab-button" data-category="swallow">Swallow</button>
-                <button class="tab-button active" data-category="rice">Rice</button>
-                <button class="tab-button" data-category="extras">Extras</button>
-
-                
-                <button class="tab-button" data-category="water">Water</button>
+                <button class="tab-button active" data-category="water">Water</button>
+                <button class="tab-button" data-category="rice">Rice</button>
+                <button class="tab-button" data-category="extras">Extras</button>  
                 <button class="tab-button" data-category="energy-drinks">Energy Drinks</button>
                 <button class="tab-button" data-category="juice">Juice</button>
-                                <button class="tab-button" data-category="spirits">Spirits</button>
+                <button class="tab-button" data-category="spirits">Spirits</button>
                 <button class="tab-button" data-category="ready-to-drink">Ready To Drink</button>
+                <button class="tab-button" data-category="cigarettes">Cigarettes</button>
             </div>
             <div id="menuList" class="menu-list"></div>
             <div class="order-controls">
