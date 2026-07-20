@@ -6,8 +6,10 @@ const subtotalAmount = document.getElementById('subtotalAmount');
 const vatAmount = document.getElementById('vatAmount');
 const grandTotalAmount = document.getElementById('grandTotalAmount');
 const sendOrderButton = document.getElementById('sendOrderButton');
+const markPaidButton = document.getElementById('markPaidButton');
 const orderFeedback = document.getElementById('orderFeedback');
 const instructionsInput = document.getElementById('instructions');
+const paymentMethodSelect = document.getElementById('paymentMethod');
 const confirmationDialog = document.getElementById('orderConfirmation');
 const confirmationDetails = document.getElementById('confirmationDetails');
 const cancelConfirmationButton = document.getElementById('cancelConfirmation');
@@ -267,6 +269,9 @@ function updateSendButtonState() {
     const enabled = orderItems.length > 0 && selectedTable !== null;
     sendOrderButton.disabled = !enabled;
     sendOrderButton.classList.toggle('active', enabled);
+    if (markPaidButton) {
+        markPaidButton.disabled = selectedTable === null;
+    }
 }
 
 function updateMenuCardState() {
@@ -329,6 +334,7 @@ function showConfirmation() {
     }
 
     const instructionText = instructionsInput.value.trim() || 'None';
+    const paymentMethod = (paymentMethodSelect?.value || 'pending').toLowerCase();
     const rows = orderItems
         .map(
             (item) => `<div class="confirmation-row"><span>${item.name} x${item.quantity}</span><strong>${formatCurrency(item.unit_price * item.quantity)}</strong></div>`
@@ -341,6 +347,7 @@ function showConfirmation() {
 
     confirmationDetails.innerHTML = `
         <div class="confirmation-row"><span>Table:</span><strong>Table ${selectedTable}</strong></div>
+        <div class="confirmation-row"><span>Payment Method:</span><strong>${paymentMethod}</strong></div>
         <div class="confirmation-row"><span>Instructions:</span><strong>${instructionText}</strong></div>
         ${rows}
         <div class="confirmation-row"><span>Subtotal:</span><strong>${formatCurrency(subtotal)}</strong></div>
@@ -362,6 +369,7 @@ async function submitOrder() {
     const payload = {
         table_id: selectedTable,
         instructions: instructionsInput.value.trim(),
+        payment_method: (paymentMethodSelect?.value || 'pending').toLowerCase(),
         items: orderItems.map((item) => ({
             menu_item_id: item.menu_item_id,
             quantity: item.quantity,
@@ -396,8 +404,40 @@ async function submitOrder() {
     }
 }
 
+async function markTablePaid() {
+    if (selectedTable === null) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/API/Status/index.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'mark_paid',
+                table_id: selectedTable,
+                payment_method: (paymentMethodSelect?.value || 'pending').toLowerCase(),
+            }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Unable to mark table as paid');
+        }
+        orderFeedback.textContent = 'Table marked as paid.';
+        await fetchTables();
+        orderItems = [];
+        instructionsInput.value = '';
+        updateTotals();
+        renderOrderSummary();
+        updateMenuCardState();
+    } catch (error) {
+        orderFeedback.textContent = error.message || 'Unable to mark table as paid.';
+    }
+}
+
 function attachEvents() {
     sendOrderButton.addEventListener('click', showConfirmation);
+    markPaidButton?.addEventListener('click', markTablePaid);
     confirmationDialog.addEventListener('click', (event) => {
         if (event.target === confirmationDialog) {
             closeConfirmation();

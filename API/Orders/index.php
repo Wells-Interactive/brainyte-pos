@@ -7,7 +7,11 @@ date_default_timezone_set('Africa/Lagos');
 
 
 session_start();
-if (empty($_SESSION['user']['role']) || $_SESSION['user']['role'] !== 'waiter') {
+$waiterRole = $_SESSION['role'] ?? $_SESSION['user']['role'] ?? null;
+$waiterId = (int)($_SESSION['user_id'] ?? $_SESSION['user']['id'] ?? 0);
+$waiterName = trim((string)($_SESSION['username'] ?? $_SESSION['user']['name'] ?? ''));
+
+if ($waiterRole !== 'waiter') {
     http_response_code(403);
     json_response(['error' => 'Forbidden'], 403);
 }
@@ -58,7 +62,11 @@ if ($method === 'POST') {
     $tableId = isset($body['table_id']) ? (int)$body['table_id'] : 0;
     $items = $body['items'] ?? [];
     $instructions = trim((string)($body['instructions'] ?? '')) ?: null;
+    $paymentMethod = in_array(strtolower((string)($body['payment_method'] ?? 'pending')), ['cash', 'pos', 'transfer', 'pending'], true)
+        ? strtolower((string)($body['payment_method'] ?? 'pending'))
+        : 'pending';
     $waiterId = (int)($_SESSION['user']['id'] ?? 0);
+    $waiterName = trim((string)($_SESSION['user']['name'] ?? ''));
 
     $hasInstructionsColumn = false;
     try {
@@ -186,6 +194,7 @@ if ($method === 'POST') {
                     waiter_id,
                     status,
                     special_instructions,
+                    payment_method,
                     created_at,
                     updated_at
                 )
@@ -195,6 +204,7 @@ if ($method === 'POST') {
                     :waiter_id,
                     :status,
                     :instructions,
+                    :payment_method,
                     :created_at,
                     :updated_at
                 )
@@ -211,6 +221,8 @@ if ($method === 'POST') {
                 ':status' => 'pending',
 
                 ':instructions' => $instructions,
+
+                ':payment_method' => $paymentMethod,
 
                 ':created_at' => $now,
 
@@ -229,6 +241,7 @@ if ($method === 'POST') {
                     table_id,
                     waiter_id,
                     status,
+                    payment_method,
                     created_at,
                     updated_at
                 )
@@ -237,6 +250,7 @@ if ($method === 'POST') {
                     :table_id,
                     :waiter_id,
                     :status,
+                    :payment_method,
                     :created_at,
                     :updated_at
                 )
@@ -251,6 +265,8 @@ if ($method === 'POST') {
                 ':waiter_id' => $waiterId,
 
                 ':status' => 'pending',
+
+                ':payment_method' => $paymentMethod,
 
                 ':created_at' => $now,
 

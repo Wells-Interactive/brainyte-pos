@@ -19,6 +19,10 @@ if (loginForm) {
                 return;
             }
             loginMessage.textContent = 'Login successful. Redirecting...';
+            // Store CSRF token
+            if (result.csrf_token) {
+                sessionStorage.setItem('csrf_token', result.csrf_token);
+            }
             window.location.href = '/index.php';
         } catch (error) {
             loginMessage.textContent = 'Network error. Try again.';
@@ -44,6 +48,8 @@ const adminItemSelect = document.getElementById('adminItemSelect');
 const adminAddMenuItem = document.getElementById('adminAddMenuItem');
 const adminUpdatePrice = document.getElementById('adminUpdatePrice');
 const adminMenuStatus = document.getElementById('adminMenuStatus');
+const adminAddUser = document.getElementById('adminAddUser');
+const adminUserStatus = document.getElementById('adminUserStatus');
 
 const adminCategories = [
     'beer', 'malt', 'soft-drinks', 'water', 'energy-drinks', 'juice', 'spirits', 'ready-to-drink',
@@ -52,8 +58,12 @@ const adminCategories = [
 function sanitizeHtml(value) {
     return String(value ?? '')
         .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+        .replace(/</g, '<')
+        .replace(/>/g, '>');
+}
+
+function getCsrfToken() {
+    return sessionStorage.getItem('csrf_token') || '';
 }
 
 async function loadAdminMenuOptions() {
@@ -101,17 +111,27 @@ async function loadAdminStats() {
         const topItems = Array.isArray(data.top_items) ? data.top_items : [];
         if (adminTopItems) {
             adminTopItems.innerHTML = topItems.length > 0
-                ? `<ul>${topItems.map((item) => `<li>${sanitizeHtml(item.item_name)} — ${sanitizeHtml(item.quantity_sold)} sold</li>`).join('')}</ul>`
+                ? `<ol>${topItems.map((item) => `<li>${sanitizeHtml(item.item_name)} <strong>${sanitizeHtml(item.quantity_sold)} sold</strong></li>`).join('')}</ol>`
                 : '<p class="message">No sales yet.</p>';
         }
-        adminLiveTables.innerHTML = Array.isArray(data.tables) && data.tables.length > 0
-            ? data.tables.map((table) => `
-                <div class="table-card status-${sanitizeHtml(table.status || 'available')}">
-                    <strong>${sanitizeHtml(table.name)}</strong>
-                    <span class="status">${sanitizeHtml(table.status || 'available')}</span>
-                </div>
-            `).join('')
-            : '<p class="message">No table status data found.</p>';
+        if (adminLiveTables) {
+            adminLiveTables.innerHTML = Array.isArray(data.tables) && data.tables.length > 0
+                ? data.tables.map((table) => {
+                    const status = table.status || 'available';
+                    let statusColor = '';
+                    if (status === 'available') statusColor = 'status-available';
+                    else if (status === 'occupied') statusColor = 'status-occupied';
+                    else if (status === 'reserved') statusColor = 'status-reserved';
+                    else if (status === 'closed') statusColor = 'status-closed';
+                    return `
+                        <div class="table-card ${statusColor}">
+                            <strong>${sanitizeHtml(table.name)}</strong>
+                            <span class="status">${sanitizeHtml(status)}</span>
+                        </div>
+                    `;
+                }).join('')
+                : '<p class="message">No table status data found.</p>';
+        }
         adminSalesTable.innerHTML = Array.isArray(data.sales) && data.sales.length > 0
             ? `
                 <table class="admin-sales-table">
@@ -130,7 +150,7 @@ async function loadAdminStats() {
                 </table>
             ` : '<p class="message">No completed sales found.</p>';
     } catch (error) {
-        adminMenuStatus.textContent = 'Unable to load admin statistics.';
+        if (adminMenuStatus) adminMenuStatus.textContent = 'Unable to load admin statistics.';
         console.error(error);
     }
 }
@@ -147,6 +167,7 @@ async function handleAdminAddItem(event) {
         price: Number(formData.get('price')),
         category: formData.get('category'),
         available: Number(formData.get('available')),
+        csrf_token: getCsrfToken(),
     };
 
     try {
@@ -178,6 +199,7 @@ async function handleAdminUpdatePrice(event) {
     const payload = {
         id: Number(formData.get('id')),
         price: Number(formData.get('price')),
+        csrf_token: getCsrfToken(),
     };
 
     try {
@@ -200,14 +222,51 @@ async function handleAdminUpdatePrice(event) {
     }
 }
 
+async function handleAdminAddUser(event) {
+    event.preventDefault();
+    if (!adminAddUser || !adminUserStatus) {
+        return;
+    }
+    const formData = new FormData(adminAddUser);
+    const payload = {
+        name: formData.get('name'),
+        email: formData.get('email'),
+        password: formData.get('password'),
+        role: formData.get('role'),
+        csrf_token: getCsrfToken(),
+    };
+
+    try {
+        const response = await fetch('/API/Login/index.php?action=add_user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Unable to add user');
+        }
+        adminUserStatus.textContent = 'User added successfully!';
+        adminAddUser.reset();
+    } catch (error) {
+        adminUserStatus.textContent = error.message;
+        console.error(error);
+    }
+}
+
 if (adminDashboard) {
     loadAdminMenuOptions();
     loadAdminStats();
+    // Auto-refresh stats every 30 seconds
+    setInterval(loadAdminStats, 30000);
     if (adminAddMenuItem) {
         adminAddMenuItem.addEventListener('submit', handleAdminAddItem);
     }
     if (adminUpdatePrice) {
         adminUpdatePrice.addEventListener('submit', handleAdminUpdatePrice);
+    }
+    if (adminAddUser) {
+        adminAddUser.addEventListener('submit', handleAdminAddUser);
     }
 }
 

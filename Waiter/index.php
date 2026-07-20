@@ -1,13 +1,13 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/utils.php';
 session_start();
-$role = $_SESSION['user']['role'] ?? null;
+$role = $_SESSION['role'] ?? $_SESSION['user']['role'] ?? null;
+$username = $_SESSION['username'] ?? $_SESSION['user']['name'] ?? '';
 if ($role !== 'waiter') {
     header('Location: /index.php');
     exit;
 }
-
-require_once __DIR__ . '/../includes/utils.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -65,7 +65,17 @@ require_once __DIR__ . '/../includes/utils.php';
             <div class="order-controls">
                 <label for="instructions">Special Instructions</label>
                 <textarea id="instructions" rows="3" placeholder="No pepper, extra onions, serve chilled"></textarea>
-                <button id="sendOrderButton" class="primary-button" disabled>Send Order</button>
+                <label for="paymentMethod">Payment Method</label>
+                <select id="paymentMethod" name="paymentMethod">
+                    <option value="pending">Pending</option>
+                    <option value="cash">Cash</option>
+                    <option value="pos">POS</option>
+                    <option value="transfer">Transfer</option>
+                </select>
+                <div class="confirmation-actions">
+                    <button id="sendOrderButton" class="primary-button" disabled>Send Order</button>
+                    <button id="markPaidButton" class="secondary-button" type="button" disabled>Mark Table as Paid</button>
+                </div>
                 <div id="orderFeedback" class="message"></div>
             </div>
         </section>

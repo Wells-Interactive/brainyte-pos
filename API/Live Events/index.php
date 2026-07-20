@@ -39,12 +39,12 @@ try {
 send_event('connected', ['role' => $role], max(0, $lastId));
 
 while (!connection_aborted()) {
-    $selectColumns = 'oi.id, oi.order_id, oi.menu_item_id, mi.name AS item_name, oi.quantity, oi.status, oi.routed_to, o.table_id, o.waiter_id, o.created_at';
+    $selectColumns = 'oi.id, oi.order_id, oi.menu_item_id, mi.name AS item_name, oi.quantity, oi.status, oi.routed_to, o.table_id, o.waiter_id, o.created_at, u.name AS waiter_name';
     if ($hasInstructionsColumn) {
         $selectColumns .= ', o.special_instructions AS instructions';
     }
 
-    $stmt = $pdo->prepare("SELECT {$selectColumns} FROM order_items oi JOIN menu_items mi ON mi.id = oi.menu_item_id JOIN orders o ON o.id = oi.order_id WHERE oi.id > :last_id AND oi.routed_to = :role AND oi.status = :status ORDER BY oi.id");
+    $stmt = $pdo->prepare("SELECT {$selectColumns} FROM order_items oi JOIN menu_items mi ON mi.id = oi.menu_item_id JOIN orders o ON o.id = oi.order_id JOIN users u ON u.id = o.waiter_id WHERE oi.id > :last_id AND oi.routed_to = :role AND oi.status = :status ORDER BY oi.id");
     $stmt->execute([':last_id' => $lastId, ':role' => $role, ':status' => 'pending']);
     $items = $stmt->fetchAll();
 

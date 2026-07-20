@@ -30,6 +30,48 @@ function ensure_order_item_status_enum(PDO $pdo): void
     }
 }
 
+function ensure_table_status_enum(PDO $pdo): void
+{
+    $stmt = $pdo->query("SHOW COLUMNS FROM restaurant_tables LIKE 'status'");
+    $column = $stmt->fetch();
+    if ($column === false) {
+        return;
+    }
+
+    $type = (string)($column['Type'] ?? '');
+    if (stripos($type, 'reserved') === false) {
+        $pdo->exec("ALTER TABLE restaurant_tables MODIFY status ENUM('available','occupied','reserved','closed') NOT NULL DEFAULT 'available'");
+    }
+}
+
+function ensure_user_role_enum(PDO $pdo): void
+{
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'role'");
+    $column = $stmt->fetch();
+    if ($column === false) {
+        return;
+    }
+
+    $type = (string)($column['Type'] ?? '');
+    if (stripos($type, 'manager') === false || stripos($type, 'supervisor') === false || stripos($type, 'owner') === false) {
+        $pdo->exec("ALTER TABLE users MODIFY role ENUM('waiter','kitchen','bar','manager','supervisor','admin','owner') NOT NULL");
+    }
+}
+
+function ensure_menu_category_enum(PDO $pdo): void
+{
+    $stmt = $pdo->query("SHOW COLUMNS FROM menu_items LIKE 'category'");
+    $column = $stmt->fetch();
+    if ($column === false) {
+        return;
+    }
+
+    $type = (string)($column['Type'] ?? '');
+    if (stripos($type, 'cigarettes') === false) {
+        $pdo->exec("ALTER TABLE menu_items MODIFY category ENUM('beer','malt','soft-drinks','water','energy-drinks','juice','spirits','ready-to-drink','rice','pepper-soup','grills','soups','swallow','extras','cigarettes') NOT NULL");
+    }
+}
+
 function ensure_database_schema(PDO $pdo): void
 {
     $pdo->exec(<<<'SQL'
@@ -38,7 +80,7 @@ function ensure_database_schema(PDO $pdo): void
             name VARCHAR(80) NOT NULL,
             email VARCHAR(120) NOT NULL UNIQUE,
             password_hash VARCHAR(255) NOT NULL,
-            role ENUM('waiter', 'kitchen', 'bar', 'admin') NOT NULL,
+            role ENUM('waiter', 'kitchen', 'bar', 'manager', 'supervisor', 'admin', 'owner') NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB
         SQL);
@@ -47,7 +89,7 @@ function ensure_database_schema(PDO $pdo): void
         CREATE TABLE IF NOT EXISTS restaurant_tables (
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(50) NOT NULL,
-            status ENUM('available', 'occupied', 'closed') NOT NULL DEFAULT 'available',
+            status ENUM('available', 'occupied', 'reserved', 'closed') NOT NULL DEFAULT 'available',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB
         SQL);
@@ -58,7 +100,7 @@ function ensure_database_schema(PDO $pdo): void
             name VARCHAR(150) NOT NULL,
             description TEXT NOT NULL,
             price DECIMAL(9,2) NOT NULL,
-            category ENUM('beer', 'malt', 'soft-drinks', 'water', 'energy-drinks', 'juice', 'spirits', 'ready-to-drink', 'rice', 'pepper-soup', 'grills', 'soups', 'swallow', 'extras') NOT NULL,
+            category ENUM('beer', 'malt', 'soft-drinks', 'water', 'energy-drinks', 'juice', 'spirits', 'ready-to-drink', 'rice', 'pepper-soup', 'grills', 'soups', 'swallow', 'extras', 'cigarettes') NOT NULL,
             available TINYINT(1) NOT NULL DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB
@@ -71,6 +113,7 @@ function ensure_database_schema(PDO $pdo): void
             waiter_id INT NOT NULL,
             status ENUM('pending', 'preparing', 'ready', 'served', 'completed') NOT NULL DEFAULT 'pending',
             special_instructions TEXT DEFAULT NULL,
+            payment_method ENUM('cash', 'pos', 'transfer', 'pending') NOT NULL DEFAULT 'pending',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (table_id) REFERENCES restaurant_tables(id) ON DELETE RESTRICT,
@@ -96,14 +139,21 @@ function ensure_database_schema(PDO $pdo): void
     ensure_column($pdo, 'menu_items', 'available', 'TINYINT(1) NOT NULL DEFAULT 1');
     ensure_column($pdo, 'menu_items', 'created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
     ensure_column($pdo, 'orders', 'special_instructions', 'TEXT DEFAULT NULL');
+    ensure_column($pdo, 'orders', 'payment_method', "ENUM('cash', 'pos', 'transfer', 'pending') NOT NULL DEFAULT 'pending'");
     ensure_column($pdo, 'orders', 'updated_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+    ensure_user_role_enum($pdo);
+    ensure_table_status_enum($pdo);
+    ensure_menu_category_enum($pdo);
     ensure_order_item_status_enum($pdo);
 
     $demoUsers = [
-        ['name' => 'Waiter User', 'email' => 'waiter', 'password' => 'waiter123', 'role' => 'waiter'],
-        ['name' => 'Kitchen User', 'email' => 'kitchen', 'password' => 'kitchen123', 'role' => 'kitchen'],
-        ['name' => 'Bar User', 'email' => 'bar', 'password' => 'bar123', 'role' => 'bar'],
-        ['name' => 'Admin User', 'email' => 'admin', 'password' => 'admin123', 'role' => 'admin'],
+        ['name' => 'Waiter User', 'email' => 'waiter@restaurant.local', 'password' => 'waiter123', 'role' => 'waiter'],
+        ['name' => 'Kitchen User', 'email' => 'kitchen@restaurant.local', 'password' => 'kitchen123', 'role' => 'kitchen'],
+        ['name' => 'Bar User', 'email' => 'bar@restaurant.local', 'password' => 'bar123', 'role' => 'bar'],
+        ['name' => 'Manager User', 'email' => 'manager@restaurant.local', 'password' => 'manager123', 'role' => 'manager'],
+        ['name' => 'Supervisor User', 'email' => 'supervisor@restaurant.local', 'password' => 'supervisor123', 'role' => 'supervisor'],
+        ['name' => 'Admin User', 'email' => 'admin@restaurant.local', 'password' => 'admin123', 'role' => 'admin'],
+        ['name' => 'Bar Owner', 'email' => 'owner@restaurant.local', 'password' => 'owner123', 'role' => 'owner'],
     ];
 
     $stmt = $pdo->prepare('INSERT INTO users (name, email, password_hash, role) VALUES (:name, :email, :password_hash, :role) ON DUPLICATE KEY UPDATE name = VALUES(name), password_hash = VALUES(password_hash), role = VALUES(role)');

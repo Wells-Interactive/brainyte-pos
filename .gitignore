@@ -4,6 +4,10 @@ includes/config.php
 
 # Documentation
 docs/
+TODO.md
+PLAN.md
+.PROJECT_SPEC.md
+
 
 # Uploads
 uploads/

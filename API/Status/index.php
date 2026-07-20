@@ -3,6 +3,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../includes/db.php';
 require_once __DIR__ . '/../../includes/utils.php';
 
+date_default_timezone_set('Africa/Lagos');
+
 $pdo = null;
 try {
     $pdo = get_db();
@@ -16,13 +18,12 @@ if ($method === 'GET') {
         if (isset($_GET['stats']) && $_GET['stats'] === '1') {
             session_start();
             $role = $_SESSION['user']['role'] ?? null;
-            if ($role !== 'admin') {
+            if (!in_array($role, ['admin', 'owner', 'manager', 'supervisor'], true)) {
                 http_response_code(403);
                 json_response(['error' => 'Forbidden'], 403);
             }
 
-            date_default_timezone_set('Africa/Lagos');
-            $now = date('Y-m-d H:i:s');
+            $now = set_now();
             $todayStart = date('Y-m-d 00:00:00', strtotime($now));
             $weekStart = date('Y-m-d 00:00:00', strtotime('-6 days', strtotime($todayStart)));
             $monthStart = date('Y-m-01 00:00:00', strtotime($now));
@@ -126,10 +127,11 @@ if ($method === 'GET') {
     if ($pdo instanceof PDO) {
         try {
             $stmt = $pdo->query(
-                'SELECT oi.id, oi.order_id, oi.menu_item_id, mi.name AS item_name, oi.quantity, oi.unit_price, oi.status, oi.routed_to, o.table_id, o.created_at, o.special_instructions AS instructions
+                'SELECT oi.id, oi.order_id, oi.menu_item_id, mi.name AS item_name, oi.quantity, oi.unit_price, oi.status, oi.routed_to, o.table_id, o.created_at, o.special_instructions AS instructions, u.name AS waiter_name
                 FROM order_items oi
                 LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
                 LEFT JOIN orders o ON o.id = oi.order_id
+                LEFT JOIN users u ON u.id = o.waiter_id
                 WHERE oi.status != "completed"
                 ORDER BY oi.id DESC
                 LIMIT 200'
@@ -149,6 +151,46 @@ if ($method === 'POST') {
         $body = get_json_body();
     } catch (JsonException $exception) {
         json_response(['error' => 'Invalid JSON body'], 400);
+    }
+
+    $action = trim((string)($body['action'] ?? ''));
+    if ($action === 'mark_paid') {
+        $tableId = isset($body['table_id']) ? (int)$body['table_id'] : 0;
+        if ($tableId <= 0) {
+            json_response(['error' => 'Table ID is required'], 400);
+        }
+
+        $paymentMethod = in_array(strtolower((string)($body['payment_method'] ?? 'pending')), ['cash', 'pos', 'transfer', 'pending'], true)
+            ? strtolower((string)($body['payment_method'] ?? 'pending'))
+            : 'pending';
+
+        $pdo->beginTransaction();
+        try {
+            $tableStmt = $pdo->prepare('SELECT id FROM restaurant_tables WHERE id = :id LIMIT 1');
+            $tableStmt->execute([':id' => $tableId]);
+            $table = $tableStmt->fetch();
+            if (!$table) {
+                throw new RuntimeException('Table not found');
+            }
+
+            $orderStmt = $pdo->prepare('SELECT id FROM orders WHERE table_id = :table_id AND status != :completed ORDER BY id DESC LIMIT 1');
+            $orderStmt->execute([':table_id' => $tableId, ':completed' => 'completed']);
+            $order = $orderStmt->fetch();
+            if ($order) {
+                    $now = date('Y-m-d H:i:s');
+                    $pdo->prepare('UPDATE orders SET status = :status, payment_method = :payment_method, updated_at = :updated_at WHERE id = :order_id')
+                        ->execute([':status' => 'completed', ':payment_method' => $paymentMethod, ':updated_at' => $now, ':order_id' => $order['id']]);
+            }
+
+            $pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')
+                ->execute([':status' => 'available', ':id' => $tableId]);
+            $pdo->commit();
+            json_response(['success' => true, 'table_id' => $tableId, 'payment_method' => $paymentMethod]);
+            return;
+        } catch (Throwable $exception) {
+            $pdo->rollBack();
+            json_response(['error' => 'Unable to mark table as paid'], 500);
+        }
     }
 
     $itemId = isset($body['item_id']) ? (int)$body['item_id'] : 0;
@@ -174,17 +216,20 @@ if ($method === 'POST') {
             $checkStmt->execute([':order_id' => $orderItem['order_id'], ':ready' => 'ready']);
             $pendingCount = (int)$checkStmt->fetchColumn();
             if ($pendingCount === 0) {
-                $pdo->prepare('UPDATE orders SET status = :status, updated_at = NOW() WHERE id = :order_id')->execute([':status' => 'ready', ':order_id' => $orderItem['order_id']]);
+                $now = date('Y-m-d H:i:s');
+                $pdo->prepare('UPDATE orders SET status = :status, updated_at = :updated_at WHERE id = :order_id')->execute([':status' => 'ready', ':updated_at' => $now, ':order_id' => $orderItem['order_id']]);
             }
         } elseif ($newStatus === 'served') {
             $checkStmt = $pdo->prepare('SELECT COUNT(*) FROM order_items WHERE order_id = :order_id AND status NOT IN (\'served\', \'completed\')');
             $checkStmt->execute([':order_id' => $orderItem['order_id']]);
             $pendingCount = (int)$checkStmt->fetchColumn();
             if ($pendingCount === 0) {
-                $pdo->prepare('UPDATE orders SET status = :status, updated_at = NOW() WHERE id = :order_id')->execute([':status' => 'served', ':order_id' => $orderItem['order_id']]);
+                $now = date('Y-m-d H:i:s');
+                $pdo->prepare('UPDATE orders SET status = :status, updated_at = :updated_at WHERE id = :order_id')->execute([':status' => 'served', ':updated_at' => $now, ':order_id' => $orderItem['order_id']]);
             }
         } elseif ($newStatus === 'completed') {
-            $pdo->prepare('UPDATE orders SET status = :status, updated_at = NOW() WHERE id = :order_id')->execute([':status' => 'completed', ':order_id' => $orderItem['order_id']]);
+            $now = date('Y-m-d H:i:s');
+            $pdo->prepare('UPDATE orders SET status = :status, updated_at = :updated_at WHERE id = :order_id')->execute([':status' => 'completed', ':updated_at' => $now, ':order_id' => $orderItem['order_id']]);
             $pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = (SELECT table_id FROM orders WHERE id = :order_id)')
                 ->execute([':status' => 'available', ':order_id' => $orderItem['order_id']]);
         }

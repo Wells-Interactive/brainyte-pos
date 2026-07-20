@@ -1,7 +1,9 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/utils.php';
 session_start();
-$role = $_SESSION['user']['role'] ?? null;
+$role = $_SESSION['role'] ?? $_SESSION['user']['role'] ?? null;
+$username = $_SESSION['username'] ?? $_SESSION['user']['name'] ?? '';
 if ($role !== 'bar') {
     header('Location: /index.php');
     exit;
@@ -26,6 +28,9 @@ if ($role !== 'bar') {
     <main class="page-grid">
         <section class="card full-width">
             <h1>Bar Orders</h1>
+            <div class="order-actions">
+                <button id="printAllBar" type="button" class="secondary-button">Print All Bar Orders</button>
+            </div>
             <div id="barFeed" class="feed-list"></div>
         </section>
     </main>
