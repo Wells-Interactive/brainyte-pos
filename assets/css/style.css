@@ -13,6 +13,7 @@
     --accent: #26d07d;
     --danger: #ff5c7a;
     --border: rgba(255, 255, 255, 0.08);
+    --kanban-bg: rgba(16, 28, 48, 0.6);
 }
 
 body {
@@ -300,6 +301,7 @@ button:disabled,
     border-radius: 0.95rem;
     background: rgba(255, 255, 255, 0.04);
     color: var(--text);
+    cursor: pointer;
 }
 
 .tab-button.active {
@@ -428,6 +430,7 @@ button:disabled,
     background: rgba(255, 255, 255, 0.06);
     color: var(--text);
     font-size: 1rem;
+    cursor: pointer;
 }
 
 .quantity-display {
@@ -677,6 +680,262 @@ textarea#instructions {
     color: #ffb1c0;
 }
 
+.status-chip.completed {
+    background: rgba(108, 117, 125, 0.16);
+    color: #ced4da;
+}
+
+/* ============================================================
+   KANBAN BOARD STYLES
+   ============================================================ */
+
+.kanban-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 1rem 0;
+    flex-wrap: wrap;
+}
+
+.last-updated {
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.kanban-board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+@media (max-width: 900px) {
+    .kanban-board {
+        grid-template-columns: 1fr;
+    }
+}
+
+.kanban-column {
+    background: var(--kanban-bg);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 1rem;
+    min-height: 300px;
+    display: flex;
+    flex-direction: column;
+}
+
+.kanban-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--border);
+}
+
+.kanban-header h2 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.kanban-count {
+    background: var(--primary);
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    min-width: 1.5rem;
+    text-align: center;
+}
+
+.kanban-items {
+    display: grid;
+    gap: 0.75rem;
+    flex: 1;
+    align-content: start;
+}
+
+.kanban-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 0.85rem;
+    padding: 0.85rem;
+    transition: border-color 0.2s ease;
+}
+
+.kanban-card:hover {
+    border-color: rgba(60, 144, 255, 0.25);
+}
+
+.kanban-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.kanban-card-header h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0;
+    flex: 1;
+}
+
+.kanban-card-body p {
+    margin: 0.25rem 0;
+    font-size: 0.9rem;
+    color: var(--muted);
+}
+
+.kanban-card-body .feed-waiter {
+    color: var(--accent);
+}
+
+.kanban-card-body .feed-instructions {
+    color: var(--text);
+    font-style: italic;
+    margin-top: 0.35rem;
+}
+
+.kanban-card-body .feed-time {
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+.kanban-card-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.kanban-card-actions .primary-button {
+    flex: 1;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.85rem;
+}
+
+.kanban-card-actions .secondary-button {
+    flex-shrink: 0;
+    font-size: 0.85rem;
+    padding: 0.65rem 0.85rem;
+}
+
+.kanban-empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 2rem 1rem;
+    font-style: italic;
+}
+
+/* Kanban column-specific header colors */
+.kanban-column[data-status="pending"] .kanban-header {
+    border-bottom-color: rgba(255, 219, 100, 0.3);
+}
+
+.kanban-column[data-status="preparing"] .kanban-header {
+    border-bottom-color: rgba(60, 144, 255, 0.3);
+}
+
+.kanban-column[data-status="ready"] .kanban-header {
+    border-bottom-color: rgba(38, 208, 125, 0.3);
+}
+
+.kanban-column[data-status="pending"] .kanban-count {
+    background: #ffc107;
+    color: #000;
+}
+
+.kanban-column[data-status="preparing"] .kanban-count {
+    background: var(--primary);
+}
+
+.kanban-column[data-status="ready"] .kanban-count {
+    background: var(--accent);
+    color: #000;
+}
+
+/* ============================================================
+   SETTINGS MANAGEMENT
+   ============================================================ */
+
+.settings-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.setting-group {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 1rem;
+}
+
+.setting-group h3 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+/* Toggle Switch */
+.toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 0;
+}
+
+.toggle-label {
+    font-weight: 600;
+    color: var(--text);
+    flex: 1;
+}
+
+.toggle-switch {
+    position: relative;
+    width: 52px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    flex-shrink: 0;
+}
+
+.toggle-switch.active {
+    background: var(--accent);
+}
+
+.toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 22px;
+    height: 22px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s ease;
+}
+
+.toggle-switch.active::after {
+    transform: translateX(24px);
+}
+
+.toggle-status {
+    font-size: 0.85rem;
+    color: var(--muted);
+    min-width: 50px;
+}
+
 @media (min-width: 860px) {
     .page-grid {
         grid-template-columns: 1fr 0.95fr;
@@ -687,35 +946,8 @@ textarea#instructions {
     }
 }
 
-.brainyte-footer {
-    width: 100%;
-    text-align: center;
-    padding: 12px 15px;
-    background: #fff;
-    border-top: 1px solid #e5e5e5;
-    font-size: 13px;
-    margin-top: 20px;
-}
-
-.brainyte-footer a {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: #444;
-    text-decoration: none;
-    transition: .2s;
-}
-
-.brainyte-footer a:hover {
-    color: #e6005c;
-}
-
-.brainyte-icon {
-    width: 18px;
-    height: 18px;
-    border-radius: 4px;
-}
-
-.brainyte-footer strong {
-    color: #e6005c;
+@media (min-width: 1200px) {
+    .page-grid {
+        max-width: 1400px;
+    }
 }

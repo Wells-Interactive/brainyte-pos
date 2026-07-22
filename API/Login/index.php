@@ -5,7 +5,6 @@ require_once __DIR__ . '/../../includes/utils.php';
 
 date_default_timezone_set('Africa/Lagos');
 
-session_start();
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     json_response(['error' => 'Method not allowed'], 405);
@@ -13,7 +12,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $action = trim((string)($_GET['action'] ?? ''));
 
+// ============================================================
 // Handle add_user action for admin/owner
+// ============================================================
 if ($action === 'add_user') {
     require_admin();
     try {
@@ -38,19 +39,24 @@ if ($action === 'add_user') {
         json_response(['error' => 'A user with this email already exists'], 409);
     }
 
+    $now = date('Y-m-d H:i:s');
     $passwordHash = password_hash($password, PASSWORD_BCRYPT);
-    $insertStmt = $pdo->prepare('INSERT INTO users (name, email, password_hash, role) VALUES (:name, :email, :password_hash, :role)');
+    $insertStmt = $pdo->prepare('INSERT INTO users (name, email, password_hash, role, created_at) VALUES (:name, :email, :password_hash, :role, :created_at)');
     $insertStmt->execute([
         ':name' => $name,
         ':email' => $email,
         ':password_hash' => $passwordHash,
         ':role' => $role,
+        ':created_at' => $now,
     ]);
 
     json_response(['success' => true, 'user_id' => (int)$pdo->lastInsertId()]);
     exit;
 }
 
+// ============================================================
+// Standard Login
+// ============================================================
 try {
     $body = get_json_body();
 } catch (JsonException $exception) {
@@ -73,15 +79,17 @@ if (empty($user) || !password_verify($password, $user['password_hash'])) {
     json_response(['error' => 'Invalid credentials'], 401);
 }
 
-// Regenerate session ID after successful login
+// ============================================================
+// Session-based auth (web)
+// ============================================================
+session_start();
 session_regenerate_id(true);
 
-// Store session with simplified keys
 $_SESSION['user_id'] = (int)$user['id'];
 $_SESSION['username'] = $user['name'];
 $_SESSION['role'] = $user['role'];
 
-// Also keep legacy user array for backward compatibility
+// Legacy user array for backward compatibility
 $_SESSION['user'] = [
     'id' => (int)$user['id'],
     'name' => $user['name'],
@@ -92,12 +100,37 @@ $_SESSION['user'] = [
 // Generate CSRF token for the session
 generate_csrf_token();
 
-json_response([
+// ============================================================
+// Bearer token for Flutter (if requested)
+// ============================================================
+$token = null;
+$requestToken = (bool)($body['request_token'] ?? false);
+if ($requestToken) {
+    $token = generate_auth_token($pdo, (int)$user['id']);
+}
+
+// ============================================================
+// Standardized Response
+// ============================================================
+$response = [
     'success' => true,
-    'user' => [
-        'id' => (int)$user['id'],
-        'name' => $user['name'],
-        'role' => $user['role'],
+    'data' => [
+        'user' => [
+            'id' => (int)$user['id'],
+            'name' => $user['name'],
+            'email' => $user['email'],
+            'role' => $user['role'],
+        ],
+        'csrf_token' => $_SESSION['csrf_token'],
     ],
-    'csrf_token' => $_SESSION['csrf_token'],
-]);
+    'error' => null,
+    'meta' => null,
+];
+
+if ($token) {
+    $response['data']['token'] = $token;
+    $response['data']['token_type'] = 'Bearer';
+    $response['data']['expires_in'] = strtotime('+365 days') - time();
+}
+
+json_response($response);

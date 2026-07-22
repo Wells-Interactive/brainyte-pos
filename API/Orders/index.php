@@ -1,64 +1,62 @@
 <?php
 declare(strict_types=1);
+/**
+ * Orders API Router
+ * 
+ * Routes requests to the appropriate handler based on action parameter or method.
+ * 
+ * POST /API/Orders/index.php         -> create.php (new order)
+ * POST /API/Orders/index.php?action=status  -> status.php (update status)
+ * GET  /API/Orders/index.php         -> list.php (list orders)
+ * GET  /API/Orders/index.php?action=history -> history.php (order history)
+ */
+
 require_once __DIR__ . '/../../includes/db.php';
 require_once __DIR__ . '/../../includes/utils.php';
 
 date_default_timezone_set('Africa/Lagos');
 
-
-session_start();
-$waiterRole = $_SESSION['role'] ?? $_SESSION['user']['role'] ?? null;
-$waiterId = (int)($_SESSION['user_id'] ?? $_SESSION['user']['id'] ?? 0);
-$waiterName = trim((string)($_SESSION['username'] ?? $_SESSION['user']['name'] ?? ''));
-
-if ($waiterRole !== 'waiter') {
-    http_response_code(403);
-    json_response(['error' => 'Forbidden'], 403);
-}
-
-$pdo = get_db();
+$action = trim((string)($_GET['action'] ?? ''));
 $method = $_SERVER['REQUEST_METHOD'];
 
-if ($method === 'GET') {
-    $role = $_GET['role'] ?? '';
-    $status = $_GET['status'] ?? '';
-    $sql = 'SELECT o.id, o.table_id, o.status, o.created_at, o.updated_at, u.name AS waiter_name
-            FROM orders o
-            JOIN users u ON u.id = o.waiter_id
-            WHERE 1 = 1';
-    $params = [];
-    if (in_array($status, ['pending', 'preparing', 'ready', 'served', 'completed'], true)) {
-        $sql .= ' AND o.status = :status';
-        $params[':status'] = $status;
-    }
-    $sql .= ' ORDER BY o.created_at DESC LIMIT 100';
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $orders = $stmt->fetchAll();
-
-    foreach ($orders as &$order) {
-        $itemStmt = $pdo->prepare('SELECT oi.id, oi.menu_item_id, mi.name, oi.quantity, oi.unit_price, oi.status, oi.routed_to FROM order_items oi JOIN menu_items mi ON mi.id = oi.menu_item_id WHERE oi.order_id = :order_id ORDER BY oi.id');
-        $itemStmt->execute([':order_id' => $order['id']]);
-        $order['items'] = $itemStmt->fetchAll();
-    }
-
-    json_response(['orders' => $orders]);
+// Route to appropriate handler
+if ($method === 'POST' && $action === '') {
+    // Order creation
+    require __DIR__ . '/create.php';
     return;
 }
 
+if ($method === 'POST' && $action === 'status') {
+    // Status update
+    require __DIR__ . '/status.php';
+    return;
+}
+
+if ($method === 'GET' && $action === 'history') {
+    // Order history
+    require __DIR__ . '/history.php';
+    return;
+}
+
+if ($method === 'GET' && $action === '') {
+    // List orders (default)
+    require __DIR__ . '/list.php';
+    return;
+}
+
+// Legacy support: Original monolithic orders logic
+// This maintains backward compatibility for existing code
+$pdo = get_db();
+
 if ($method === 'POST') {
+    // Legacy order creation (same as before)
     try {
         $body = get_json_body();
     } catch (JsonException $exception) {
         json_response(['error' => 'Invalid JSON body'], 400);
     }
 
- 	/*
-       Generate time AFTER request starts processing
-       This ensures correct Nigerian time
-    */
     $now = date('Y-m-d H:i:s');
-
     $tableId = isset($body['table_id']) ? (int)$body['table_id'] : 0;
     $items = $body['items'] ?? [];
     $instructions = trim((string)($body['instructions'] ?? '')) ?: null;
@@ -130,432 +128,119 @@ if ($method === 'POST') {
         json_response(['error' => 'Table and order items are required'], 400);
     }
 
-
-    /*
-       Check table exists
-    */
-
-    $tableStmt = $pdo->prepare(
-        'SELECT id, status 
-         FROM restaurant_tables 
-         WHERE id = :id 
-         LIMIT 1'
-    );
-
-    $tableStmt->execute([
-        ':id' => $tableId
-    ]);
-
+    $tableStmt = $pdo->prepare('SELECT id, status FROM restaurant_tables WHERE id = :id LIMIT 1');
+    $tableStmt->execute([':id' => $tableId]);
     $table = $tableStmt->fetch();
 
-
     if (!$table) {
-
-        $insertTableStmt = $pdo->prepare(
-            'INSERT INTO restaurant_tables 
-            (id, name, status) 
-            VALUES 
-            (:id, :name, :status)'
-        );
-
-
-        $insertTableStmt->execute([
-            ':id' => $tableId,
-            ':name' => "Table {$tableId}",
-            ':status' => 'available'
-        ]);
+        $insertTableStmt = $pdo->prepare('INSERT INTO restaurant_tables (id, name, status) VALUES (:id, :name, :status)');
+        $insertTableStmt->execute([':id' => $tableId, ':name' => "Table {$tableId}", ':status' => 'available']);
     }
-
-
-
-    /*
-       SAVE ORDER
-    */
 
     $pdo->beginTransaction();
-
-
     try {
-
-
-        /*
-          Correct timestamp insert
-          Using PHP $now instead of MySQL NOW()
-        */
-
         if ($hasInstructionsColumn) {
-
-
-            $orderStmt = $pdo->prepare(
-                '
-                INSERT INTO orders
-                (
-                    table_id,
-                    waiter_id,
-                    status,
-                    special_instructions,
-                    payment_method,
-                    created_at,
-                    updated_at
-                )
-                VALUES
-                (
-                    :table_id,
-                    :waiter_id,
-                    :status,
-                    :instructions,
-                    :payment_method,
-                    :created_at,
-                    :updated_at
-                )
-                '
-            );
-
-
-            $orderStmt->execute([
-
-                ':table_id' => $tableId,
-
-                ':waiter_id' => $waiterId,
-
-                ':status' => 'pending',
-
-                ':instructions' => $instructions,
-
-                ':payment_method' => $paymentMethod,
-
-                ':created_at' => $now,
-
-                ':updated_at' => $now
-            ]);
-
-
-
+            $orderStmt = $pdo->prepare('INSERT INTO orders (table_id, waiter_id, status, special_instructions, payment_method, created_at, updated_at) VALUES (:table_id, :waiter_id, :status, :instructions, :payment_method, :created_at, :updated_at)');
+            $orderStmt->execute([':table_id' => $tableId, ':waiter_id' => $waiterId, ':status' => 'pending', ':instructions' => $instructions, ':payment_method' => $paymentMethod, ':created_at' => $now, ':updated_at' => $now]);
         } else {
-
-
-            $orderStmt = $pdo->prepare(
-                '
-                INSERT INTO orders
-                (
-                    table_id,
-                    waiter_id,
-                    status,
-                    payment_method,
-                    created_at,
-                    updated_at
-                )
-                VALUES
-                (
-                    :table_id,
-                    :waiter_id,
-                    :status,
-                    :payment_method,
-                    :created_at,
-                    :updated_at
-                )
-                '
-            );
-
-
-            $orderStmt->execute([
-
-                ':table_id' => $tableId,
-
-                ':waiter_id' => $waiterId,
-
-                ':status' => 'pending',
-
-                ':payment_method' => $paymentMethod,
-
-                ':created_at' => $now,
-
-                ':updated_at' => $now
-            ]);
+            $orderStmt = $pdo->prepare('INSERT INTO orders (table_id, waiter_id, status, payment_method, created_at, updated_at) VALUES (:table_id, :waiter_id, :status, :payment_method, :created_at, :updated_at)');
+            $orderStmt->execute([':table_id' => $tableId, ':waiter_id' => $waiterId, ':status' => 'pending', ':payment_method' => $paymentMethod, ':created_at' => $now, ':updated_at' => $now]);
         }
-
-
 
         $orderId = (int)$pdo->lastInsertId();
-
-
-
-        /*
-           Save order items
-        */
-
-
-        $itemStmt = $pdo->prepare(
-            '
-            SELECT 
-                id,
-                price,
-                category
-            FROM menu_items
-            WHERE id = :id
-            AND available = 1
-            LIMIT 1
-            '
-        );
-
-
-
-        $insertItemStmt = $pdo->prepare(
-            '
-            INSERT INTO order_items
-            (
-                order_id,
-                menu_item_id,
-                quantity,
-                unit_price,
-                status,
-                routed_to
-            )
-            VALUES
-            (
-                :order_id,
-                :menu_item_id,
-                :quantity,
-                :unit_price,
-                :status,
-                :routed_to
-            )
-            '
-        );
-
-
+        $itemStmt = $pdo->prepare('SELECT id, price, category FROM menu_items WHERE id = :id AND available = 1 LIMIT 1');
+        $insertItemStmt = $pdo->prepare('INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, status, routed_to) VALUES (:order_id, :menu_item_id, :quantity, :unit_price, :status, :routed_to)');
+        $foodCategories = ['rice', 'pepper-soup', 'grills', 'soups', 'swallow', 'extras'];
 
         foreach ($items as $item) {
+            $menuItemId = (int)($item['menu_item_id'] ?? 0);
+            $quantity = max(1, (int)($item['quantity'] ?? 1));
+            if ($menuItemId <= 0) continue;
 
-
-            $menuItemId = (int)(
-                $item['menu_item_id'] ?? 0
-            );
-
-
-            $quantity = max(
-                1,
-                (int)(
-                    $item['quantity'] ?? 1
-                )
-            );
-
-
-            if ($menuItemId <= 0) {
-                continue;
-            }
-
-
-
-            $itemStmt->execute([
-                ':id' => $menuItemId
-            ]);
-
-
+            $itemStmt->execute([':id' => $menuItemId]);
             $product = $itemStmt->fetch();
 
-
-
-            /*
-               Create missing fallback item
-            */
-
             if (!$product && isset($fallbackMenuItems[$menuItemId])) {
-
-
                 $fallback = $fallbackMenuItems[$menuItemId];
-
-
                 try {
-
-
-                    $insertMenuStmt = $pdo->prepare(
-                        '
-                        INSERT IGNORE INTO menu_items
-                        (
-                            id,
-                            name,
-                            description,
-                            price,
-                            category,
-                            available
-                        )
-                        VALUES
-                        (
-                            :id,
-                            :name,
-                            :description,
-                            :price,
-                            :category,
-                            1
-                        )
-                        '
-                    );
-
-
-                    $insertMenuStmt->execute([
-
-                        ':id' => $menuItemId,
-
-                        ':name' => $fallback['name'],
-
-                        ':description' => '',
-
-                        ':price' => $fallback['price'],
-
-                        ':category' => $fallback['category']
-                    ]);
-
-
-                } catch (Throwable $e) {
-
-                    // ignore fallback creation error
-                }
-
-
-
-                $itemStmt->execute([
-                    ':id' => $menuItemId
-                ]);
-
-
+                    $insertMenuStmt = $pdo->prepare('INSERT IGNORE INTO menu_items (id, name, description, price, category, available) VALUES (:id, :name, :description, :price, :category, 1)');
+                    $insertMenuStmt->execute([':id' => $menuItemId, ':name' => $fallback['name'], ':description' => '', ':price' => $fallback['price'], ':category' => $fallback['category']]);
+                } catch (Throwable $e) {}
+                $itemStmt->execute([':id' => $menuItemId]);
                 $product = $itemStmt->fetch();
-
             }
 
+            if (!$product) continue;
 
-
-            if (!$product) {
-                continue;
-            }
-
-
-
-            /*
-               Route food to kitchen
-               Drinks to bar
-            */
-
-            $foodCategories = [
-
-                'rice',
-                'pepper-soup',
-                'grills',
-                'soups',
-                'swallow',
-                'extras'
-
-            ];
-
-
-
-            $routedTo = in_array(
-                $product['category'],
-                $foodCategories,
-                true
-            )
-            ? 'kitchen'
-            : 'bar';
-
-
-
-            $insertItemStmt->execute([
-
-                ':order_id' => $orderId,
-
-                ':menu_item_id' => $menuItemId,
-
-                ':quantity' => $quantity,
-
-                ':unit_price' => $product['price'],
-
-                ':status' => 'pending',
-
-                ':routed_to' => $routedTo
-
-            ]);
+            $routedTo = in_array($product['category'], $foodCategories, true) ? 'kitchen' : 'bar';
+            $insertItemStmt->execute([':order_id' => $orderId, ':menu_item_id' => $menuItemId, ':quantity' => $quantity, ':unit_price' => $product['price'], ':status' => 'pending', ':routed_to' => $routedTo]);
         }
 
-
-
-
-        /*
-           Occupy table
-        */
-
-        $updateTableStmt = $pdo->prepare(
-            '
-            UPDATE restaurant_tables
-            SET status = :status
-            WHERE id = :id
-            '
-        );
-
-
-        $updateTableStmt->execute([
-
-            ':status' => 'occupied',
-
-            ':id' => $tableId
-
-        ]);
-
-
-
+        $pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')->execute([':status' => 'occupied', ':id' => $tableId]);
         $pdo->commit();
-
-
-
     } catch (Throwable $exception) {
-
-
-        if ($pdo->inTransaction()) {
-
-            $pdo->rollBack();
-
-        }
-
-
-        json_response([
-
-            'error' => 'Unable to save order',
-
-            // remove in production
-            'debug' => $exception->getMessage()
-
-        ],500);
-
-
-        exit;
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        json_response(['error' => 'Unable to save order', 'debug' => $exception->getMessage()], 500);
     }
 
+    $directPrinting = false;
+    $kitchenItems = [];
+    $barItems = [];
 
+    try {
+        $settingStmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'direct_printing' LIMIT 1");
+        $settingStmt->execute();
+        $settingRow = $settingStmt->fetch();
+        $directPrinting = ($settingRow && $settingRow['setting_value'] === '1');
 
+        if ($directPrinting) {
+            $itemsStmt = $pdo->prepare('SELECT oi.id, oi.menu_item_id, mi.name AS item_name, oi.quantity, oi.unit_price, oi.routed_to, o.table_id, oi.status FROM order_items oi JOIN menu_items mi ON mi.id = oi.menu_item_id JOIN orders o ON o.id = oi.order_id WHERE oi.order_id = :order_id ORDER BY oi.routed_to, oi.id');
+            $itemsStmt->execute([':order_id' => $orderId]);
+            $savedItems = $itemsStmt->fetchAll();
+            foreach ($savedItems as $savedItem) {
+                $itemData = ['id' => (int)$savedItem['id'], 'menu_item_id' => (int)$savedItem['menu_item_id'], 'item_name' => $savedItem['item_name'], 'quantity' => (int)$savedItem['quantity'], 'unit_price' => (float)$savedItem['unit_price'], 'table_id' => $savedItem['table_id'], 'waiter_name' => $waiterName];
+                if ($savedItem['routed_to'] === 'kitchen') $kitchenItems[] = $itemData;
+                else $barItems[] = $itemData;
+            }
+        }
+    } catch (Throwable $e) { $directPrinting = false; }
 
-    json_response([
+    $response = ['success' => true, 'order_id' => $orderId, 'created_at' => $now];
+    if ($directPrinting) {
+        $response['direct_print'] = true;
+        $response['table_id'] = $tableId;
+        $response['instructions'] = $instructions;
+        $response['kitchen_items'] = $kitchenItems;
+        $response['bar_items'] = $barItems;
+    }
 
-        'success' => true,
-
-        'order_id' => $orderId,
-
-        'created_at' => $now
-
-    ]);
-
-
+    json_response($response);
     exit;
-
 }
 
+if ($method === 'GET') {
+    $role = $_GET['role'] ?? '';
+    $status = $_GET['status'] ?? '';
+    $sql = 'SELECT o.id, o.table_id, o.status, o.created_at, o.updated_at, u.name AS waiter_name FROM orders o JOIN users u ON u.id = o.waiter_id WHERE 1 = 1';
+    $params = [];
+    if (in_array($status, ['pending', 'preparing', 'ready', 'served', 'completed'], true)) {
+        $sql .= ' AND o.status = :status';
+        $params[':status'] = $status;
+    }
+    $sql .= ' ORDER BY o.created_at DESC LIMIT 100';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $orders = $stmt->fetchAll();
 
+    foreach ($orders as &$order) {
+        $itemStmt = $pdo->prepare('SELECT oi.id, oi.menu_item_id, mi.name, oi.quantity, oi.unit_price, oi.status, oi.routed_to FROM order_items oi JOIN menu_items mi ON mi.id = oi.menu_item_id WHERE oi.order_id = :order_id ORDER BY oi.id');
+        $itemStmt->execute([':order_id' => $order['id']]);
+        $order['items'] = $itemStmt->fetchAll();
+    }
 
+    json_response(['orders' => $orders]);
+    return;
+}
 
 http_response_code(405);
-
-json_response([
-
-    'error' => 'Method not allowed'
-
-],405);
-
-
+json_response(['error' => 'Method not allowed'], 405);

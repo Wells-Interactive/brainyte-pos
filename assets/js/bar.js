@@ -1,4 +1,8 @@
-const barFeed = document.getElementById('barFeed');
+/**
+ * Bar Kanban Board
+ * Columns: NEW (pending) | PREPARING | READY
+ */
+
 const statusFlow = {
     pending: { label: 'Mark Preparing', next: 'preparing' },
     preparing: { label: 'Mark Ready', next: 'ready' },
@@ -8,75 +12,8 @@ const statusFlow = {
 
 function formatFeedTime(value) {
     const parsed = Date.parse(value);
-    if (Number.isNaN(parsed)) {
-        return 'Unknown time';
-    }
+    if (Number.isNaN(parsed)) return 'Unknown time';
     return new Date(parsed).toLocaleTimeString();
-}
-
-function createFeedCard(item) {
-    const status = (item.status || 'pending').toLowerCase();
-    const action = statusFlow[status];
-    const itemName = item.item_name || `Item #${item.menu_item_id || item.id || 'N/A'}`;
-    const tableNumber = item.table_id ?? 'N/A';
-    const waiterName = item.waiter_name || 'N/A';
-    return `
-    <article class="feed-card" data-item-id="${item.id}">
-        <div>
-            <h3>${itemName}</h3>
-            <p>Table ${tableNumber} • Qty ${item.quantity ?? 0}</p>
-            <p class="feed-waiter">Waiter: ${waiterName}</p>
-            ${item.instructions ? `<p class="feed-instructions">Instructions: ${item.instructions}</p>` : ''}
-        </div>
-        <div class="item-meta">
-            <span>${formatFeedTime(item.created_at)}</span>
-            <span class="status-chip ${status}">${status.toUpperCase()}</span>
-        </div>
-        <div class="feed-actions">
-            ${action ? `<button type="button" data-item-id="${item.id}" data-current-status="${status}" class="primary-button">${action.label}</button>` : ''}
-            <button type="button" class="secondary-button print-item" data-item-id="${item.id}">Print Docket</button>
-        </div>
-    </article>`;
-}
-
-function renderFeed(items) {
-    const activeItems = (items || [])
-        .filter((item) => item.routed_to === 'bar' && item.status !== 'completed')
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    barFeed.innerHTML = activeItems.length
-        ? activeItems.map(createFeedCard).join('')
-        : '<p class="message">No active bar orders.</p>';
-    attachButtons();
-}
-
-function updateOrAddCard(item) {
-    const existingCard = barFeed.querySelector(`article[data-item-id="${item.id}"]`);
-    if (item.status === 'completed') {
-        if (existingCard) {
-            existingCard.remove();
-        }
-        return;
-    }
-
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = createFeedCard(item);
-
-    if (existingCard) {
-        existingCard.replaceWith(wrapper.firstElementChild);
-    } else {
-        barFeed.prepend(wrapper.firstElementChild);
-    }
-    attachButtons();
-}
-
-function attachButtons() {
-    barFeed.querySelectorAll('button[data-item-id]').forEach((button) => {
-        if (button.classList.contains('print-item')) {
-            button.onclick = handlePrintDocket;
-        } else {
-            button.onclick = handleStatusUpdate;
-        }
-    });
 }
 
 function formatCurrency(value) {
@@ -86,6 +23,149 @@ function formatCurrency(value) {
         minimumFractionDigits: 2,
     }).format(value);
 }
+
+function createKanbanCard(item) {
+    const status = (item.status || 'pending').toLowerCase();
+    const action = statusFlow[status];
+    const itemName = item.item_name || `Item #${item.menu_item_id || item.id || 'N/A'}`;
+    const tableNumber = item.table_id ?? 'N/A';
+    const waiterName = item.waiter_name || 'N/A';
+    const cardId = `item-${item.id}`;
+
+    return `
+    <article class="kanban-card" id="${cardId}" data-item-id="${item.id}" data-status="${status}">
+        <div class="kanban-card-header">
+            <h3>${itemName}</h3>
+            <span class="status-chip ${status}">${status.toUpperCase()}</span>
+        </div>
+        <div class="kanban-card-body">
+            <p><strong>Table:</strong> ${tableNumber}</p>
+            <p><strong>Qty:</strong> ${item.quantity ?? 0}</p>
+            <p class="feed-waiter"><strong>Waiter:</strong> ${waiterName}</p>
+            ${formatFeedTime(item.created_at) !== 'Unknown time' ? `<p class="feed-time">${formatFeedTime(item.created_at)}</p>` : ''}
+            ${item.instructions ? `<p class="feed-instructions"><strong>Note:</strong> ${item.instructions}</p>` : ''}
+        </div>
+        <div class="kanban-card-actions">
+            ${action ? `<button type="button" data-item-id="${item.id}" data-current-status="${status}" class="primary-button">${action.label}</button>` : ''}
+            <button type="button" class="secondary-button print-item" data-item-id="${item.id}">Print</button>
+        </div>
+    </article>`;
+}
+
+// DOM references
+const kanbanPending = document.getElementById('kanban-pending');
+const kanbanPreparing = document.getElementById('kanban-preparing');
+const kanbanReady = document.getElementById('kanban-ready');
+const countPending = document.getElementById('count-pending');
+const countPreparing = document.getElementById('count-preparing');
+const countReady = document.getElementById('count-ready');
+const lastUpdatedSpan = document.getElementById('lastUpdated');
+
+function getColumnContainer(status) {
+    if (status === 'pending') return kanbanPending;
+    if (status === 'preparing') return kanbanPreparing;
+    if (status === 'ready') return kanbanReady;
+    return null;
+}
+
+function getCountElement(status) {
+    if (status === 'pending') return countPending;
+    if (status === 'preparing') return countPreparing;
+    if (status === 'ready') return countReady;
+    return null;
+}
+
+function updateLastUpdated() {
+    if (lastUpdatedSpan) {
+        lastUpdatedSpan.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+    }
+}
+
+function renderKanban(items) {
+    const activeItems = (items || []).filter(
+        (item) => item.routed_to === 'bar' && !['completed', 'served'].includes(item.status)
+    );
+
+    kanbanPending.innerHTML = '';
+    kanbanPreparing.innerHTML = '';
+    kanbanReady.innerHTML = '';
+
+    const counts = { pending: 0, preparing: 0, ready: 0 };
+
+    activeItems.forEach((item) => {
+        const status = (item.status || 'pending').toLowerCase();
+        if (counts[status] !== undefined) counts[status]++;
+        const container = getColumnContainer(status);
+        if (container) {
+            container.insertAdjacentHTML('beforeend', createKanbanCard(item));
+        }
+    });
+
+    if (countPending) countPending.textContent = counts.pending;
+    if (countPreparing) countPreparing.textContent = counts.preparing;
+    if (countReady) countReady.textContent = counts.ready;
+
+    if (counts.pending === 0) kanbanPending.innerHTML = '<div class="kanban-empty">No new orders</div>';
+    if (counts.preparing === 0) kanbanPreparing.innerHTML = '<div class="kanban-empty">Nothing preparing</div>';
+    if (counts.ready === 0) kanbanReady.innerHTML = '<div class="kanban-empty">Nothing ready</div>';
+
+    attachButtons();
+    updateLastUpdated();
+}
+
+function updateOrAddCard(item) {
+    if (item.routed_to !== 'bar') return;
+    if (['completed', 'served'].includes(item.status)) {
+        const existingCard = document.getElementById(`item-${item.id}`);
+        if (existingCard) existingCard.remove();
+        return;
+    }
+
+    const status = (item.status || 'pending').toLowerCase();
+    const container = getColumnContainer(status);
+    if (!container) return;
+
+    const existingCard = document.getElementById(`item-${item.id}`);
+    if (existingCard) {
+        existingCard.outerHTML = createKanbanCard(item);
+    } else {
+        container.insertAdjacentHTML('beforeend', createKanbanCard(item));
+    }
+
+    attachButtons();
+    recountAll();
+    updateLastUpdated();
+}
+
+function recountAll() {
+    ['pending', 'preparing', 'ready'].forEach((status) => {
+        const container = getColumnContainer(status);
+        const count = container ? container.querySelectorAll('.kanban-card').length : 0;
+        const countEl = getCountElement(status);
+        if (countEl) countEl.textContent = count;
+        if (container && count === 0) {
+            container.innerHTML = `<div class="kanban-empty">No ${status === 'pending' ? 'new' : status} orders</div>`;
+        }
+    });
+}
+
+function attachButtons() {
+    document.querySelectorAll('button[data-item-id]').forEach((button) => {
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+        newButton.addEventListener('click', (event) => {
+            if (newButton.classList.contains('print-item')) {
+                handlePrintDocket(event);
+            } else {
+                handleStatusUpdate(event);
+            }
+        });
+    });
+}
+
+// ============================================================
+// PRINTING
+// ============================================================
 
 function buildDocketHtml(item) {
     const now = new Date().toLocaleString();
@@ -140,27 +220,28 @@ function buildDocketHtml(item) {
 }
 
 function handlePrintDocket(event) {
-    const button = event.target;
+    const button = event.currentTarget;
     const itemId = Number(button.dataset.itemId);
-    const card = button.closest('article');
+    const card = document.getElementById(`item-${itemId}`);
     if (!card) return;
 
     const itemName = card.querySelector('h3')?.textContent || `Item #${itemId}`;
-    const tableText = card.querySelector('p')?.textContent || '';
-    const tableMatch = tableText.match(/Table (\d+)/);
-    const tableNumber = tableMatch ? tableMatch[1] : 'N/A';
-    const qtyMatch = tableText.match(/Qty (\d+)/);
-    const qty = qtyMatch ? qtyMatch[1] : '0';
-    const waiterElem = card.querySelector('.feed-waiter');
-    const waiterName = waiterElem ? waiterElem.textContent.replace('Waiter: ', '') : 'N/A';
-    const instructionsElem = card.querySelector('.feed-instructions');
-    const instructions = instructionsElem ? instructionsElem.textContent.replace('Instructions: ', '') : '';
+    const bodyEls = card.querySelectorAll('.kanban-card-body p');
+    let tableNumber = 'N/A', qty = '0', waiterName = 'N/A', instructions = '';
+
+    bodyEls.forEach((p) => {
+        const text = p.textContent || '';
+        if (text.includes('Table:')) tableNumber = text.replace('Table:', '').trim();
+        if (text.includes('Qty:')) qty = text.replace('Qty:', '').trim();
+        if (text.includes('Waiter:')) waiterName = text.replace('Waiter:', '').trim();
+        if (text.includes('Note:')) instructions = text.replace('Note:', '').trim();
+    });
 
     const item = {
         id: itemId,
         item_name: itemName,
         table_id: tableNumber,
-        quantity: parseInt(qty),
+        quantity: parseInt(qty) || 0,
         waiter_name: waiterName,
         instructions: instructions,
     };
@@ -177,23 +258,25 @@ function handlePrintDocket(event) {
 const printAllBtn = document.getElementById('printAllBar');
 if (printAllBtn) {
     printAllBtn.addEventListener('click', () => {
-        const allCards = barFeed.querySelectorAll('.feed-card');
+        const allCards = document.querySelectorAll('.kanban-card');
         if (allCards.length === 0) {
             alert('No bar orders to print.');
             return;
         }
-        let items = [];
-        allCards.forEach(card => {
+
+        const items = [];
+        allCards.forEach((card) => {
             const itemId = Number(card.dataset.itemId);
             const itemName = card.querySelector('h3')?.textContent || '';
-            const tableText = card.querySelector('p')?.textContent || '';
-            const tableMatch = tableText.match(/Table (\d+)/);
-            const tableNumber = tableMatch ? tableMatch[1] : 'N/A';
-            const qtyMatch = tableText.match(/Qty (\d+)/);
-            const qty = qtyMatch ? parseInt(qtyMatch[1]) : 0;
-            const waiterElem = card.querySelector('.feed-waiter');
-            const waiterName = waiterElem ? waiterElem.textContent.replace('Waiter: ', '') : 'N/A';
-            items.push({ id: itemId, item_name: itemName, table_id: tableNumber, quantity: qty, waiter_name: waiterName });
+            const bodyEls = card.querySelectorAll('.kanban-card-body p');
+            let tableNumber = 'N/A', qty = '0', waiterName = 'N/A';
+            bodyEls.forEach((p) => {
+                const text = p.textContent || '';
+                if (text.includes('Table:')) tableNumber = text.replace('Table:', '').trim();
+                if (text.includes('Qty:')) qty = text.replace('Qty:', '').trim();
+                if (text.includes('Waiter:')) waiterName = text.replace('Waiter:', '').trim();
+            });
+            items.push({ id: itemId, item_name: itemName, table_id: tableNumber, quantity: parseInt(qty) || 0, waiter_name: waiterName });
         });
 
         const now = new Date().toLocaleString();
@@ -211,7 +294,6 @@ if (printAllBtn) {
                 .footer { text-align: center; font-size: 10px; margin-top: 8px; }
                 table { width: 100%; border-collapse: collapse; }
                 td { padding: 2px 0; }
-                .qty { text-align: center; }
                 .item-divider { border-top: 1px dotted #999; margin: 4px 0; }
             </style>
         </head>
@@ -247,60 +329,81 @@ if (printAllBtn) {
     });
 }
 
+// ============================================================
+// STATUS UPDATES
+// ============================================================
+
 async function handleStatusUpdate(event) {
-    const button = event.target;
+    const button = event.currentTarget;
     const itemId = Number(button.dataset.itemId);
     const currentStatus = button.dataset.currentStatus;
     const nextStatus = statusFlow[currentStatus]?.next;
-    if (!nextStatus) {
-        return;
-    }
+    if (!nextStatus) return;
 
     button.disabled = true;
+    button.textContent = 'Updating...';
+
     try {
-        const response = await fetch('/API/Status/index.php', {
+        const response = await fetch('/API/Orders/status.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ item_id: itemId, status: nextStatus }),
         });
+
         if (!response.ok) {
-            throw new Error('Unable to update status');
+            const errData = await response.json();
+            throw new Error(errData.error || 'Unable to update status');
         }
 
         if (nextStatus === 'completed') {
-            const card = button.closest('article');
-            if (card) {
-                card.remove();
-            }
+            const card = document.getElementById(`item-${itemId}`);
+            if (card) card.remove();
+            recountAll();
             return;
         }
 
-        const card = button.closest('article');
+        const card = document.getElementById(`item-${itemId}`);
         if (card) {
-            const statusChip = card.querySelector('.status-chip');
-            if (statusChip) {
-                statusChip.textContent = nextStatus.toUpperCase();
-                statusChip.className = `status-chip ${nextStatus}`;
+            const newStatus = nextStatus;
+            const newContainer = getColumnContainer(newStatus);
+            if (newContainer) {
+                card.dataset.status = newStatus;
+                const headerStatus = card.querySelector('.status-chip');
+                if (headerStatus) {
+                    headerStatus.textContent = newStatus.toUpperCase();
+                    headerStatus.className = `status-chip ${newStatus}`;
+                }
+                const actionBtn = card.querySelector('.primary-button');
+                if (actionBtn && statusFlow[newStatus]) {
+                    actionBtn.dataset.currentStatus = newStatus;
+                    actionBtn.textContent = statusFlow[newStatus].label;
+                }
+                newContainer.appendChild(card);
+                recountAll();
             }
-            button.dataset.currentStatus = nextStatus;
-            button.textContent = statusFlow[nextStatus].label;
         }
     } catch (error) {
-        console.error(error);
+        console.error('Status update failed:', error);
+        alert('Failed to update status. Please try again.');
     } finally {
         button.disabled = false;
     }
 }
 
+// ============================================================
+// DATA LOADING
+// ============================================================
+
 async function loadCurrentItems() {
     try {
         const response = await fetch('/API/Status/index.php');
-        if (!response.ok) {
-            return;
-        }
-        const data = await response.json();
+        if (!response.ok) return;
+        const result = await response.json();
+        const data = result.data || result;
         if (Array.isArray(data.order_items)) {
-            renderFeed(data.order_items);
+            renderKanban(data.order_items);
+        } else if (Array.isArray(data)) {
+            renderKanban(data);
         }
     } catch (error) {
         console.error('Bar feed sync failed', error);
@@ -310,12 +413,15 @@ async function loadCurrentItems() {
 function connectSSE() {
     const source = new EventSource('/API/Live Events/index.php?role=bar');
     source.addEventListener('new-order', (event) => {
-        const data = JSON.parse(event.data);
-        updateOrAddCard(data);
+        try {
+            const data = JSON.parse(event.data);
+            if (!data.status) data.status = 'pending';
+            updateOrAddCard(data);
+        } catch (e) {
+            console.error('SSE parse error:', e);
+        }
     });
-    source.addEventListener('heartbeat', () => {
-        console.debug('Bar SSE heartbeat');
-    });
+    source.addEventListener('heartbeat', () => {});
     source.onerror = () => {
         console.warn('Bar SSE disconnected, retrying...');
         setTimeout(connectSSE, 3000);
@@ -323,6 +429,9 @@ function connectSSE() {
     };
 }
 
+// ============================================================
+// INIT
+// ============================================================
 loadCurrentItems();
 connectSSE();
 setInterval(loadCurrentItems, 7000);

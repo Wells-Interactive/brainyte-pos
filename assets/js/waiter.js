@@ -20,7 +20,9 @@ let selectedTable = null;
 let orderItems = [];
 let currentMenuItems = [];
 let currentCategory = 'water';
-const VAT_RATE = 0.00;
+
+// Dynamic VAT rate - loaded from settings on init
+let VAT_RATE = 0.00;
 
 const categoryLabels = {
     'beer': 'Beer',
@@ -127,7 +129,6 @@ async function fetchMenu(category = 'water') {
                             <span>${categoryLabels[item.category] || item.category}</span>
                             <span>${formatCurrency(Number(item.price))}</span>
                         </div>
-                    </div>
                     <div class="menu-card-footer">
                         <div class="quantity-display">Qty: <strong class="item-count">${quantity}</strong></div>
                         <div class="card-actions">
@@ -135,7 +136,6 @@ async function fetchMenu(category = 'water') {
                             <button type="button" class="control-button" data-action="increase">+</button>
                         </div>
                         <div class="card-click-tip">Tap card to add</div>
-                    </div>
                 </article>`;
             })
             .join('');
@@ -158,7 +158,6 @@ async function fetchMenu(category = 'water') {
                             <span>${categoryLabels[item.category] || item.category}</span>
                             <span>${formatCurrency(Number(item.price))}</span>
                         </div>
-                    </div>
                     <div class="menu-card-footer">
                         <div class="quantity-display">Qty: <strong class="item-count">${quantity}</strong></div>
                         <div class="card-actions">
@@ -166,7 +165,6 @@ async function fetchMenu(category = 'water') {
                             <button type="button" class="control-button" data-action="increase">+</button>
                         </div>
                         <div class="card-click-tip">Tap card to add</div>
-                    </div>
                 </article>`;
             }).join('')
             : '<div class="menu-message">Unable to load menu items right now.</div>';
@@ -361,6 +359,63 @@ function closeConfirmation() {
     confirmationDialog.classList.add('hidden');
 }
 
+function buildDirectDocketHtml(items, location, tableId, waiterName, instructions) {
+    const now = new Date().toLocaleString();
+    const locationLabel = location === 'kitchen' ? 'KITCHEN' : 'BAR';
+    let itemsHtml = '';
+    let total = 0;
+    items.forEach((item) => {
+        const itemTotal = item.quantity * item.unit_price;
+        total += itemTotal;
+        itemsHtml += `<tr><td>${item.item_name}</td><td class="qty">${item.quantity}</td><td class="price">${formatCurrency(itemTotal)}</td></tr>`;
+    });
+
+    return `
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>${locationLabel} Docket</title>
+        <style>
+            @page { margin: 0; size: 80mm auto; }
+            body { font-family: 'Courier New', monospace; font-size: 12px; margin: 0; padding: 8px; width: 72mm; }
+            h2 { text-align: center; font-size: 16px; margin: 4px 0; }
+            h3 { text-align: center; font-size: 14px; margin: 4px 0; }
+            .divider { border-top: 1px dashed #000; margin: 6px 0; }
+            .row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
+            .footer { text-align: center; font-size: 10px; margin-top: 8px; }
+            .bold { font-weight: bold; }
+            table { width: 100%; border-collapse: collapse; }
+            td { padding: 2px 0; }
+            .qty { text-align: center; }
+            .price { text-align: right; }
+        </style>
+    </head>
+    <body>
+        <h2>${locationLabel} DOCKET</h2>
+        <div class="divider"></div>
+        <div class="row"><span>Table:</span><span class="bold">${tableId}</span></div>
+        <div class="row"><span>Waiter:</span><span class="bold">${waiterName}</span></div>
+        <div class="row"><span>Time:</span><span>${now}</span></div>
+        <div class="divider"></div>
+        <table>
+            <tr><td><strong>Item</strong></td><td class="qty"><strong>Qty</strong></td><td class="price"><strong>Amount</strong></td></tr>
+            ${itemsHtml}
+        </table>
+        <div class="divider"></div>
+        <div class="row"><span>Total:</span><span class="bold">${formatCurrency(total)}</span></div>
+        ${instructions ? `<div class="divider"></div><p><strong>Instructions:</strong> ${instructions}</p>` : ''}
+        <div class="divider"></div>
+        <div class="footer">
+            <p>Powered by Brainyte</p>
+            <p>Thank you!</p>
+        </div>
+        <script>
+            window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); }
+        <\/script>
+    </body>
+    </html>`;
+}
+
 async function submitOrder() {
     if (orderItems.length === 0 || selectedTable === null) {
         return;
@@ -391,6 +446,34 @@ async function submitOrder() {
         }
 
         orderFeedback.textContent = 'Order sent successfully!';
+
+        // Handle direct printing
+        if (data.direct_print) {
+            const waiterName = data.kitchen_items?.[0]?.waiter_name || '';
+            const tableId = data.table_id || selectedTable;
+            const instructions = data.instructions || '';
+
+            // Print kitchen docket
+            if (data.kitchen_items && data.kitchen_items.length > 0) {
+                const kitchenHtml = buildDirectDocketHtml(data.kitchen_items, 'kitchen', tableId, waiterName, instructions);
+                const kitchenWindow = window.open('', '_blank', 'width=300,height=600,menubar=no,toolbar=no');
+                if (kitchenWindow) {
+                    kitchenWindow.document.write(kitchenHtml);
+                    kitchenWindow.document.close();
+                }
+            }
+
+            // Print bar docket
+            if (data.bar_items && data.bar_items.length > 0) {
+                const barHtml = buildDirectDocketHtml(data.bar_items, 'bar', tableId, waiterName, instructions);
+                const barWindow = window.open('', '_blank', 'width=300,height=600,menubar=no,toolbar=no');
+                if (barWindow) {
+                    barWindow.document.write(barHtml);
+                    barWindow.document.close();
+                }
+            }
+        }
+
         orderItems = [];
         instructionsInput.value = '';
         await fetchTables();
@@ -458,6 +541,20 @@ function attachEvents() {
 }
 
 (async function init() {
+    // Load VAT from settings dynamically
+    try {
+        const settingsResp = await fetch('/API/Settings/index.php');
+        const settingsResult = await settingsResp.json();
+        const settingsData = settingsResult.data || settingsResult;
+        if (settingsData.settings && settingsData.settings.vat_rate) {
+            VAT_RATE = parseFloat(settingsData.settings.vat_rate) / 100;
+        } else if (settingsData.vat_rate) {
+            VAT_RATE = parseFloat(settingsData.vat_rate) / 100;
+        }
+    } catch (e) {
+        console.warn('Could not load VAT rate, using default 0%');
+    }
+
     await fetchTables();
     await fetchMenu(currentCategory);
     updateTotals();

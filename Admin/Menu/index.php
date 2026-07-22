@@ -89,6 +89,17 @@ $csrf_token = generate_csrf_token();
 
             <div id="adminSalesTable" class="table-card"></div>
 
+            <!-- Direct Printing Toggle (Admin/Owner Only) -->
+            <div class="card">
+                <h3>Print Settings</h3>
+                <div class="toggle-container">
+                    <span class="toggle-label">Direct Printing</span>
+                    <div id="directPrintingToggle" class="toggle-switch" role="button" tabindex="0" aria-label="Toggle direct printing"></div>
+                    <span id="directPrintingStatus" class="toggle-status">Disabled</span>
+                </div>
+                <p class="message" style="margin-top:0;font-size:0.9rem;">When enabled, orders from waiters are sent directly to the Kitchen and Bar thermal printers without appearing on their dashboards.</p>
+            </div>
+
             <div class="admin-controls">
                 <h3>Add Menu Item</h3>
                 <form id="adminAddMenuItem" class="form-grid">

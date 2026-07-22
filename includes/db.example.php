@@ -6,6 +6,9 @@ const DB_NAME = 'database';
 const DB_USER = 'user';
 const DB_PASS = 'pass';
 
+/**
+ * Add a column to a table if it doesn't exist.
+ */
 function ensure_column(PDO $pdo, string $table, string $column, string $definition): void
 {
     $stmt = $pdo->query(sprintf('SHOW COLUMNS FROM `%s` LIKE %s', $table, $pdo->quote($column)));
@@ -16,6 +19,9 @@ function ensure_column(PDO $pdo, string $table, string $column, string $definiti
     $pdo->exec(sprintf('ALTER TABLE `%s` ADD COLUMN `%s` %s', $table, $column, $definition));
 }
 
+/**
+ * Ensure the order_items status enum includes all values.
+ */
 function ensure_order_item_status_enum(PDO $pdo): void
 {
     $stmt = $pdo->query("SHOW COLUMNS FROM order_items LIKE 'status'");
@@ -30,6 +36,9 @@ function ensure_order_item_status_enum(PDO $pdo): void
     }
 }
 
+/**
+ * Ensure the restaurant_tables status enum includes all values.
+ */
 function ensure_table_status_enum(PDO $pdo): void
 {
     $stmt = $pdo->query("SHOW COLUMNS FROM restaurant_tables LIKE 'status'");
@@ -44,6 +53,9 @@ function ensure_table_status_enum(PDO $pdo): void
     }
 }
 
+/**
+ * Ensure the users role enum includes all values.
+ */
 function ensure_user_role_enum(PDO $pdo): void
 {
     $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'role'");
@@ -58,6 +70,9 @@ function ensure_user_role_enum(PDO $pdo): void
     }
 }
 
+/**
+ * Ensure the menu_items category enum includes all values.
+ */
 function ensure_menu_category_enum(PDO $pdo): void
 {
     $stmt = $pdo->query("SHOW COLUMNS FROM menu_items LIKE 'category'");
@@ -72,8 +87,15 @@ function ensure_menu_category_enum(PDO $pdo): void
     }
 }
 
+/**
+ * Create or update database tables.
+ * Uses $now = date('Y-m-d H:i:s') for time handling as per requirements.
+ */
 function ensure_database_schema(PDO $pdo): void
 {
+    $now = date('Y-m-d H:i:s');
+
+    // --- Users ---
     $pdo->exec(<<<'SQL'
         CREATE TABLE IF NOT EXISTS users (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -81,19 +103,21 @@ function ensure_database_schema(PDO $pdo): void
             email VARCHAR(120) NOT NULL UNIQUE,
             password_hash VARCHAR(255) NOT NULL,
             role ENUM('waiter', 'kitchen', 'bar', 'manager', 'supervisor', 'admin', 'owner') NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME NOT NULL
         ) ENGINE=InnoDB
         SQL);
 
+    // --- Restaurant Tables ---
     $pdo->exec(<<<'SQL'
         CREATE TABLE IF NOT EXISTS restaurant_tables (
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(50) NOT NULL,
             status ENUM('available', 'occupied', 'reserved', 'closed') NOT NULL DEFAULT 'available',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME NOT NULL
         ) ENGINE=InnoDB
         SQL);
 
+    // --- Menu Items ---
     $pdo->exec(<<<'SQL'
         CREATE TABLE IF NOT EXISTS menu_items (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -102,10 +126,11 @@ function ensure_database_schema(PDO $pdo): void
             price DECIMAL(9,2) NOT NULL,
             category ENUM('beer', 'malt', 'soft-drinks', 'water', 'energy-drinks', 'juice', 'spirits', 'ready-to-drink', 'rice', 'pepper-soup', 'grills', 'soups', 'swallow', 'extras', 'cigarettes') NOT NULL,
             available TINYINT(1) NOT NULL DEFAULT 1,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME NOT NULL
         ) ENGINE=InnoDB
         SQL);
 
+    // --- Orders ---
     $pdo->exec(<<<'SQL'
         CREATE TABLE IF NOT EXISTS orders (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -114,13 +139,14 @@ function ensure_database_schema(PDO $pdo): void
             status ENUM('pending', 'preparing', 'ready', 'served', 'completed') NOT NULL DEFAULT 'pending',
             special_instructions TEXT DEFAULT NULL,
             payment_method ENUM('cash', 'pos', 'transfer', 'pending') NOT NULL DEFAULT 'pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
             FOREIGN KEY (table_id) REFERENCES restaurant_tables(id) ON DELETE RESTRICT,
             FOREIGN KEY (waiter_id) REFERENCES users(id) ON DELETE RESTRICT
         ) ENGINE=InnoDB
         SQL);
 
+    // --- Order Items ---
     $pdo->exec(<<<'SQL'
         CREATE TABLE IF NOT EXISTS order_items (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -130,22 +156,99 @@ function ensure_database_schema(PDO $pdo): void
             unit_price DECIMAL(9,2) NOT NULL,
             status ENUM('pending', 'preparing', 'ready', 'served', 'completed') NOT NULL DEFAULT 'pending',
             routed_to ENUM('kitchen', 'bar') NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at DATETIME NOT NULL,
             FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
             FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE RESTRICT
         ) ENGINE=InnoDB
         SQL);
 
+    // --- Order Status History (track every status change) ---
+    $pdo->exec(<<<'SQL'
+        CREATE TABLE IF NOT EXISTS order_status_history (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            order_id INT DEFAULT NULL,
+            order_item_id INT DEFAULT NULL,
+            from_status VARCHAR(20) DEFAULT NULL,
+            to_status VARCHAR(20) NOT NULL,
+            changed_by_user_id INT DEFAULT NULL,
+            notes TEXT DEFAULT NULL,
+            created_at DATETIME NOT NULL,
+            FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
+            FOREIGN KEY (order_item_id) REFERENCES order_items(id) ON DELETE SET NULL,
+            FOREIGN KEY (changed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB
+        SQL);
+
+    // --- Notifications Queue ---
+    $pdo->exec(<<<'SQL'
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            target_role ENUM('waiter', 'kitchen', 'bar', 'manager', 'supervisor', 'admin', 'owner', 'all') NOT NULL DEFAULT 'all',
+            target_user_id INT DEFAULT NULL,
+            title VARCHAR(200) NOT NULL,
+            body TEXT NOT NULL,
+            type ENUM('order_update', 'status_change', 'payment', 'system', 'alert') NOT NULL DEFAULT 'order_update',
+            reference_type VARCHAR(50) DEFAULT NULL,
+            reference_id INT DEFAULT NULL,
+            is_read TINYINT(1) NOT NULL DEFAULT 0,
+            sent_to_push TINYINT(1) NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL,
+            FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB
+        SQL);
+
+    // --- Auth Tokens (for Flutter Bearer Token auth) ---
+    $pdo->exec(<<<'SQL'
+        CREATE TABLE IF NOT EXISTS auth_tokens (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            token VARCHAR(64) NOT NULL UNIQUE,
+            expires_at DATETIME NOT NULL,
+            created_at DATETIME NOT NULL,
+            last_used_at DATETIME DEFAULT NULL,
+            revoked TINYINT(1) NOT NULL DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB
+        SQL);
+
+    // --- Settings (Centralized) ---
+    $pdo->exec(<<<'SQL'
+        CREATE TABLE IF NOT EXISTS settings (
+            setting_key VARCHAR(50) PRIMARY KEY,
+            setting_value TEXT NOT NULL,
+            updated_at DATETIME NOT NULL
+        ) ENGINE=InnoDB
+        SQL);
+
+    // Ensure all columns exist (backward compatibility)
     ensure_column($pdo, 'menu_items', 'available', 'TINYINT(1) NOT NULL DEFAULT 1');
-    ensure_column($pdo, 'menu_items', 'created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
+    ensure_column($pdo, 'menu_items', 'created_at', 'DATETIME NOT NULL');
     ensure_column($pdo, 'orders', 'special_instructions', 'TEXT DEFAULT NULL');
     ensure_column($pdo, 'orders', 'payment_method', "ENUM('cash', 'pos', 'transfer', 'pending') NOT NULL DEFAULT 'pending'");
-    ensure_column($pdo, 'orders', 'updated_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+    ensure_column($pdo, 'orders', 'updated_at', 'DATETIME NOT NULL');
+    ensure_column($pdo, 'order_items', 'created_at', 'DATETIME NOT NULL');
     ensure_user_role_enum($pdo);
     ensure_table_status_enum($pdo);
     ensure_menu_category_enum($pdo);
     ensure_order_item_status_enum($pdo);
 
+    // --- Insert default settings ---
+    $defaultSettings = [
+        ['restaurant_name', '6th June POS'],
+        ['logo_url', '/assets/images/brainyte-icon.png'],
+        ['vat_rate', '0.00'],
+        ['currency', 'NGN'],
+        ['timezone', 'Africa/Lagos'],
+        ['printer_type', 'thermal'],
+        ['footer_text', 'Powered by Brainyte'],
+        ['direct_printing', '0'],
+    ];
+    $settingStmt = $pdo->prepare('INSERT IGNORE INTO settings (setting_key, setting_value, updated_at) VALUES (:key, :value, :updated_at)');
+    foreach ($defaultSettings as $setting) {
+        $settingStmt->execute([':key' => $setting[0], ':value' => $setting[1], ':updated_at' => $now]);
+    }
+
+    // --- Demo Users ---
     $demoUsers = [
         ['name' => 'Waiter User', 'email' => 'waiter@restaurant.local', 'password' => 'waiter123', 'role' => 'waiter'],
         ['name' => 'Kitchen User', 'email' => 'kitchen@restaurant.local', 'password' => 'kitchen123', 'role' => 'kitchen'],
@@ -156,39 +259,27 @@ function ensure_database_schema(PDO $pdo): void
         ['name' => 'Bar Owner', 'email' => 'owner@restaurant.local', 'password' => 'owner123', 'role' => 'owner'],
     ];
 
-    $stmt = $pdo->prepare('INSERT INTO users (name, email, password_hash, role) VALUES (:name, :email, :password_hash, :role) ON DUPLICATE KEY UPDATE name = VALUES(name), password_hash = VALUES(password_hash), role = VALUES(role)');
+    $stmt = $pdo->prepare('INSERT INTO users (name, email, password_hash, role, created_at) VALUES (:name, :email, :password_hash, :role, :created_at) ON DUPLICATE KEY UPDATE name = VALUES(name), password_hash = VALUES(password_hash), role = VALUES(role)');
     foreach ($demoUsers as $user) {
         $stmt->execute([
             ':name' => $user['name'],
             ':email' => $user['email'],
             ':password_hash' => password_hash($user['password'], PASSWORD_BCRYPT),
             ':role' => $user['role'],
+            ':created_at' => $now,
         ]);
     }
 
-    $pdo->exec("INSERT IGNORE INTO restaurant_tables (id, name, status) VALUES
-        (1, 'Table 1', 'available'),
-        (2, 'Table 2', 'available'),
-        (3, 'Table 3', 'available'),
-        (4, 'Table 4', 'available'),
-        (5, 'Table 5', 'available'),
-        (6, 'Table 6', 'available'),
-        (7, 'Table 7', 'available'),
-        (8, 'Table 8', 'available'),
-        (9, 'Table 9', 'available'),
-        (10, 'Table 10', 'available'),
-        (11, 'Table 11', 'available'),
-        (12, 'Table 12', 'available'),
-        (13, 'Table 13', 'available'),
-        (14, 'Table 14', 'available'),
-        (15, 'Table 15', 'available'),
-        (16, 'Table 16', 'available'),
-        (17, 'Table 17', 'available'),
-        (18, 'Table 18', 'available'),
-        (19, 'Table 19', 'available'),
-        (20, 'Table 20', 'available')");
+    // --- Demo Tables (20 tables) ---
+    $tableStmt = $pdo->prepare('INSERT IGNORE INTO restaurant_tables (id, name, status, created_at) VALUES (:id, :name, :status, :created_at)');
+    for ($i = 1; $i <= 20; $i++) {
+        $tableStmt->execute([':id' => $i, ':name' => "Table {$i}", ':status' => 'available', ':created_at' => $now]);
+    }
 }
 
+/**
+ * Get the PDO database connection (singleton).
+ */
 function get_db(): PDO
 {
     static $pdo = null;

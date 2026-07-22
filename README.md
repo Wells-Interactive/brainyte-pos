@@ -24,10 +24,8 @@ https://linktr.ee/wellsinteractive
 # 📖 Overview
 
 Brainyte Restaurant POS is a modern restaurant ordering system built specifically for Nigerian restaurants, bars, lounges and hotels.
-
 The system focuses on speed, simplicity and real-time communication between waiters, the kitchen and the bar.
-
-Unlike traditional POS systems filled with unnecessary modules, Brainyte Restaurant POS is designed around fast order taking. Orders from Waiter to Kitchen is Instantenous, more like in milliseconds.
+Unlike traditional POS systems filled with unnecessary modules, Brainyte Restaurant POS is designed around fast order taking. Orders from Waiter to Kitchen is instantenous, more like in milliseconds.
 
 ---
 
@@ -58,6 +56,7 @@ Unlike traditional POS systems filled with unnecessary modules, Brainyte Restaur
 - Secure Sessions
 - Logout
 - User Roles
+
 
 ---
 
@@ -138,6 +137,9 @@ VAT Rate
 |---------|--------|
 | Login | ✅ Complete |
 | Waiter | ✅ Complete |
+| Admin | ✅ Complete |
+| Owner | ✅ Complete |
+| Manager | ✅ Complete |
 | Tables | ✅ Complete |
 | Menu | ✅ Complete |
 | Order Summary | ✅ Complete |
@@ -148,6 +150,8 @@ VAT Rate
 | Branding | ✅ Complete |
 | Responsive Layout | ✅ Complete |
 | API | ✅ Complete |
+
+
 
 ---
 
@@ -173,9 +177,15 @@ Web Version
 Testing & Bug Fixes
 
 - Performance Improvements
+- Centralized settings with admin/manager UI to manage them (**NEW)
+- Direct Printing (**NEW)
 - UI Polish
-- Final Testing
 - Security Review
+- 4 new tables: order_status_history, notifications, auth_tokens, settings (**NEW)
+- Bearer token auth, flutter ready (**NEW)
+- CSRF protection (**NEW)
+- Notification queue for all roles + Flutter readiness (**NEW)
+- Final Testing
 
 **Current Stage**
 
@@ -236,24 +246,6 @@ Future
 
 ---
 
-# 📂 Project Structure
-
-```
-Restaurant POS
-
-├── Login
-├── Waiter
-├── Kitchen
-├── Bar
-├── API
-│
-├── Assets
-├── CSS
-├── JS
-└── Database
-```
-
----
 
 # ❤️ Branding
 
@@ -270,7 +262,7 @@ https://linktr.ee/wellsinteractive
 ```
 Brainyte Restaurant POS
 
-Current Version 1.1 Stable
+Current Version 2.1 Stable
 ```
 
 ---
