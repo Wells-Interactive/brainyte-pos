@@ -11,8 +11,6 @@ require_once __DIR__ . '/../../includes/utils.php';
  * GET  /API/Settings/index.php?key=foo   - Get single setting value
  */
 
-date_default_timezone_set('Africa/Lagos');
-
 $method = $_SERVER['REQUEST_METHOD'];
 
 // ============================================================
@@ -23,7 +21,6 @@ if ($method === 'GET') {
     $singleKey = trim((string)($_GET['key'] ?? ''));
 
     if ($singleKey !== '') {
-        // Return single setting
         $stmt = $pdo->prepare('SELECT setting_key, setting_value FROM settings WHERE setting_key = :key LIMIT 1');
         $stmt->execute([':key' => $singleKey]);
         $row = $stmt->fetch();
@@ -68,7 +65,6 @@ if ($method === 'POST') {
         json_response(['error' => 'Setting key is required'], 400);
     }
 
-    // Allowed settings keys
     $allowedKeys = [
         'direct_printing',
         'restaurant_name',
@@ -84,7 +80,6 @@ if ($method === 'POST') {
         json_response(['error' => 'Invalid setting key'], 400);
     }
 
-    // Validate values
     if ($settingKey === 'direct_printing' && !in_array($settingValue, ['0', '1'], true)) {
         json_response(['error' => 'Setting value must be 0 or 1'], 400);
     }

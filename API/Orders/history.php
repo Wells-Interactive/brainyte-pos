@@ -8,8 +8,6 @@ require_once __DIR__ . '/../../includes/utils.php';
  * GET /API/Orders/history.php?order_id=X&item_id=Y
  */
 
-date_default_timezone_set('Africa/Lagos');
-
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     json_response(['error' => 'Method not allowed'], 405);
 }

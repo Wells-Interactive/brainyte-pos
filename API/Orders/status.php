@@ -10,8 +10,6 @@ require_once __DIR__ . '/../../includes/utils.php';
  * Body: { item_id, status } or { order_id, status }
  */
 
-date_default_timezone_set('Africa/Lagos');
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_response(['error' => 'Method not allowed'], 405);
 }

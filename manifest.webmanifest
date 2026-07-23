@@ -1,16 +1,1 @@
-{
-  "name": "Restaurant POS",
-  "short_name": "POS",
-  "description": "Mobile-first restaurant point-of-sale system with live kitchen and bar events.",
-  "start_url": "/index.php",
-  "display": "standalone",
-  "background_color": "#0d1321",
-  "theme_color": "#1e2d3b",
-  "icons": [
-    {
-      "src": "assets/icons/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
-    }
-  ]
-}
+{"name":"Restaurant POS","short_name":"POS","description":"Mobile-first restaurant point-of-sale system with live kitchen and bar events.","start_url":"/index.php","display":"standalone","background_color":"#ffffff","theme_color":"#35AD6B","icons":[{"src":"assets/icons/icon.svg","sizes":"any","type":"image/svg+xml"}]}

@@ -51,7 +51,7 @@ $csrf_token = generate_csrf_token();
     <title><?= safe_text($restaurantName) ?></title>
     <link rel="stylesheet" href="assets/css/style.css?v=2.0" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <meta name="theme-color" content="#1e2d3b" />
+<meta name="theme-color" content="#35AD6B" />
     <meta name="description" content="Mobile-first restaurant POS with waiter, kitchen, bar, and live events." />
 </head>
 <body>

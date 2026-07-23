@@ -95,11 +95,14 @@ if (loginForm) {
                 loginMessage.textContent = result.error || 'Unable to log in';
                 return;
             }
+
             loginMessage.textContent = 'Login successful. Redirecting...';
-            if (result.csrf_token) {
-                sessionStorage.setItem('csrf_token', result.csrf_token);
+            const token = result.csrf_token || (result.data && result.data.csrf_token);
+            if (token) {
+                sessionStorage.setItem('csrf_token', token);
             }
-            window.location.href = '/index.php';
+            const redirectUrl = result.redirect || (result.data && result.data.redirect) || '/index.php';
+            window.location.href = redirectUrl;
         } catch (error) {
             loginMessage.textContent = 'Network error. Try again.';
         }

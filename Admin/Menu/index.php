@@ -19,7 +19,7 @@ $csrf_token = generate_csrf_token();
     <title>Admin Dashboard | Restaurant POS</title>
     <link rel="stylesheet" href="../../assets/css/style.css" />
     <link rel="manifest" href="../../manifest.webmanifest" />
-    <meta name="theme-color" content="#1e2d3b" />
+<meta name="theme-color" content="#4CAF50" />
     <meta name="description" content="Admin-only menu management page for the restaurant POS." />
 </head>
 <body>

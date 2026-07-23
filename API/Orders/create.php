@@ -10,8 +10,6 @@ require_once __DIR__ . '/../../includes/utils.php';
  * Body: { table_id, items: [{ menu_item_id, quantity, unit_price }], instructions, payment_method }
  */
 
-date_default_timezone_set('Africa/Lagos');
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_response(['error' => 'Method not allowed'], 405);
 }

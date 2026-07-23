@@ -57,6 +57,12 @@ const fallbackMenuItems = {
     soups: [{ id: 501, name: 'Egusi Soup', description: 'Thick egusi soup.', price: 3000, category: 'soups' }],
     swallow: [{ id: 601, name: 'Pounded Yam', description: 'Smooth pounded yam.', price: 1800, category: 'swallow' }],
     extras: [{ id: 701, name: 'Plantain', description: 'Fried ripe plantain.', price: 1200, category: 'extras' }],
+    cigarettes: [
+        { id: 706, name: 'Marlboro Red', description: 'Premium cigarette pack.', price: 1500, category: 'cigarettes' },
+        { id: 707, name: 'Royal Classic', description: 'Classic cigarette pack.', price: 1400, category: 'cigarettes' },
+        { id: 708, name: 'Brown Benson', description: 'Premium cigarette pack.', price: 2000, category: 'cigarettes' },
+        { id: 709, name: 'Benson Switch', description: 'Premium cigarette pack.', price: 2000, category: 'cigarettes' },
+    ],
 };
 
 function formatCurrency(value) {

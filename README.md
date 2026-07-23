@@ -48,6 +48,22 @@ Unlike traditional POS systems filled with unnecessary modules, Brainyte Restaur
 
 </div>
 
+# Architecture
+ 
+                BRAINYTE POS BACKEND
+                 PHP + MySQL + REST API
+                         │
+          ┌──────────────┼──────────────┐
+          │              │              │
+          ▼              ▼              ▼
+     Admin Web       Flutter App     REST API
+     Browser         Android/iOS     Authentication
+          │              │              │
+          │       ┌──────┴──────┐       │
+          │       │             │       │
+          │    Waiter       Kitchen/Bar │
+          │       │             │       │
+          └───────┴─────────────┴───────┘
 # ✨ Features
 
 ## 🔐 Authentication

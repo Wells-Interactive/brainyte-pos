@@ -3,26 +3,26 @@
 }
 
 :root {
-    color-scheme: dark;
-    --bg: #0d1321;
-    --surface: #14223e;
-    --surface-alt: #19294d;
-    --text: #f9fbff;
-    --muted: #9fb3c8;
-    --primary: #3c90ff;
-    --accent: #26d07d;
-    --danger: #ff5c7a;
-    --border: rgba(255, 255, 255, 0.08);
-    --kanban-bg: rgba(16, 28, 48, 0.6);
+    color-scheme: light;
+    --bg: #ffffff;
+    --surface: #f8faf8;
+    --surface-alt: #f0f5f0;
+    --text: #1a2e1a;
+    --muted: #5a7a5a;
+    --primary: #35AD6B;
+    --primary-light: #6BCFA0;
+    --accent: #35AD6B;
+    --accent-dark: #2E8F5B;
+    --danger: #e53935;
+    --border: rgba(0, 0, 0, 0.08);
+    --kanban-bg: rgba(240, 248, 240, 0.8);
 }
 
 body {
     margin: 0;
     min-height: 100vh;
     font-family: Inter, system-ui, sans-serif;
-    background: radial-gradient(circle at top left, rgba(56, 132, 255, 0.15), transparent 35%),
-        radial-gradient(circle at bottom right, rgba(38, 208, 125, 0.15), transparent 32%),
-        var(--bg);
+    background: var(--bg);
     color: var(--text);
 }
 
@@ -32,7 +32,7 @@ body {
     justify-content: space-between;
     gap: 1rem;
     padding: 1rem 1.5rem;
-    background: rgba(20, 34, 62, 0.9);
+    background: var(--surface);
     border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
@@ -42,6 +42,7 @@ body {
 .brand {
     font-size: 1.1rem;
     font-weight: 700;
+    color: var(--accent-dark);
 }
 
 .nav-links,
@@ -59,15 +60,16 @@ body {
     padding: 0.65rem 1rem;
     border: 1px solid transparent;
     border-radius: 0.85rem;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface-alt);
     transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 .nav-links a:hover,
 .button-link:hover,
 .card-link:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.15);
+    background: var(--primary-light);
+    color: #fff;
+    border-color: var(--accent-dark);
 }
 
 .page-grid {
@@ -80,8 +82,8 @@ body {
 
 .card,
 .hero-card {
-    background: rgba(18, 32, 55, 0.92);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 1.25rem;
     padding: 1.5rem;
 }
@@ -100,10 +102,12 @@ h3 {
 
 h1 {
     font-size: clamp(1.8rem, 2.8vw, 2.8rem);
+    color: var(--accent-dark);
 }
 
 h2 {
     font-size: 1.2rem;
+    color: var(--text);
 }
 
 .form-grid {
@@ -127,8 +131,8 @@ input,
 select,
 textarea {
     width: 100%;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    background: var(--bg);
     color: var(--text);
     border-radius: 0.85rem;
     padding: 0.95rem 1rem;
@@ -138,15 +142,15 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 4px rgba(60, 144, 255, 0.12);
+    border-color: var(--accent-dark);
+    box-shadow: 0 0 0 4px rgba(50, 205, 50, 0.12);
 }
 
 button,
 .primary-button {
     border: none;
     border-radius: 0.95rem;
-    color: var(--text);
+    color: #fff;
     background: var(--primary);
     padding: 0.95rem 1.25rem;
     font-weight: 700;
@@ -157,7 +161,7 @@ button,
 button:hover,
 .primary-button:hover {
     transform: translateY(-1px);
-    background: #3b7de2;
+    background: var(--accent-dark);
 }
 
 button:disabled,
@@ -185,8 +189,8 @@ button:disabled,
     text-decoration: none;
     padding: 0.65rem 0.95rem;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
 }
 
 .brainyte-icon {
@@ -196,7 +200,7 @@ button:disabled,
     width: 1.35rem;
     height: 1.35rem;
     border-radius: 50%;
-    background: var(--primary);
+    background: var(--accent-dark);
     color: white;
     font-weight: 700;
     font-size: 0.9rem;
@@ -205,8 +209,8 @@ button:disabled,
 .info-box,
 .total-box,
 .status-pill {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
     border-radius: 1rem;
     padding: 1rem;
 }
@@ -247,6 +251,11 @@ button:disabled,
     gap: 0.35rem;
 }
 
+.admin-stat h3 {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
 .admin-controls {
     display: grid;
     gap: 1rem;
@@ -263,7 +272,7 @@ button:disabled,
 .admin-sales-table td {
     padding: 0.8rem;
     text-align: left;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--border);
 }
 
 @media (min-width: 700px) {
@@ -283,7 +292,7 @@ button:disabled,
 }
 
 .panel {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--surface-alt);
     padding: 1rem;
     border-radius: 1rem;
 }
@@ -297,16 +306,22 @@ button:disabled,
 
 .tab-button {
     padding: 0.9rem 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid var(--border);
     border-radius: 0.95rem;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--surface-alt);
     color: var(--text);
     cursor: pointer;
 }
 
 .tab-button.active {
-    background: var(--primary);
-    border-color: rgba(60, 144, 255, 0.18);
+    background: var(--accent-dark);
+    color: #fff;
+    border-color: var(--accent-dark);
+}
+
+.tab-button:hover {
+    background: var(--primary-light);
+    color: #fff;
 }
 
 .table-grid {
@@ -324,41 +339,41 @@ button:disabled,
     gap: 0.5rem;
     padding: 1rem;
     border-radius: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    background: var(--bg);
     color: var(--text);
     cursor: pointer;
     text-align: left;
 }
 
 .table-card:hover {
-    border-color: rgba(60, 144, 255, 0.18);
-    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--accent-dark);
+    background: var(--surface-alt);
 }
 
 .table-card.selected {
-    border-color: var(--accent);
-    background: rgba(38, 208, 125, 0.14);
+    border-color: var(--accent-dark);
+    background: rgba(50, 205, 50, 0.14);
 }
 
 .table-card.status-available {
-    border-color: rgba(38, 208, 125, 0.55);
-    background: rgba(38, 208, 125, 0.16);
+    border-color: rgba(50, 205, 50, 0.55);
+    background: rgba(50, 205, 50, 0.08);
 }
 
 .table-card.status-occupied {
-    border-color: rgba(222, 73, 73, 0.7);
-    background: rgba(222, 73, 73, 0.16);
+    border-color: rgba(229, 57, 53, 0.7);
+    background: rgba(229, 57, 53, 0.08);
 }
 
 .table-card.status-reserved {
-    border-color: rgba(54, 128, 255, 0.75);
-    background: rgba(54, 128, 255, 0.16);
+    border-color: rgba(33, 150, 243, 0.75);
+    background: rgba(33, 150, 243, 0.08);
 }
 
 .table-card.status-closed {
-    border-color: rgba(146, 146, 146, 0.6);
-    background: rgba(146, 146, 146, 0.14);
+    border-color: rgba(158, 158, 158, 0.6);
+    background: rgba(158, 158, 158, 0.08);
 }
 
 .table-card strong {
@@ -377,8 +392,8 @@ button:disabled,
 
 .menu-card,
 .feed-card {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--bg);
+    border: 1px solid var(--border);
     border-radius: 1rem;
     padding: 1rem;
 }
@@ -386,6 +401,7 @@ button:disabled,
 .menu-card h3,
 .feed-card h3 {
     margin-top: 0;
+    color: var(--text);
 }
 
 .menu-card p,
@@ -404,8 +420,8 @@ button:disabled,
 }
 
 .menu-card.selected {
-    border-color: var(--accent);
-    background: rgba(38, 208, 125, 0.14);
+    border-color: var(--accent-dark);
+    background: rgba(50, 205, 50, 0.08);
 }
 
 .menu-card-footer {
@@ -426,11 +442,16 @@ button:disabled,
     min-width: 3rem;
     height: 3rem;
     border-radius: 0.85rem;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    background: var(--surface-alt);
     color: var(--text);
     font-size: 1rem;
     cursor: pointer;
+}
+
+.control-button:hover {
+    background: var(--primary-light);
+    color: #fff;
 }
 
 .quantity-display {
@@ -454,7 +475,7 @@ button:disabled,
     gap: 0.75rem;
     align-items: center;
     padding: 0.65rem 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--border);
 }
 
 .summary-header {
@@ -503,16 +524,16 @@ textarea#instructions {
     width: 100%;
     resize: vertical;
     border-radius: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    background: var(--bg);
     color: var(--text);
     padding: 0.85rem;
     min-height: 88px;
 }
 
 .secondary-button {
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border);
+    background: var(--surface-alt);
     color: var(--text);
     border-radius: 0.95rem;
     padding: 0.95rem 1.25rem;
@@ -520,19 +541,20 @@ textarea#instructions {
 }
 
 .secondary-button:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--primary-light);
+    color: #fff;
 }
 
 .primary-button.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #000;
+    background: var(--accent-dark);
+    border-color: var(--accent-dark);
+    color: #fff;
 }
 
 .modal {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.65);
+    background: rgba(0, 0, 0, 0.45);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -546,8 +568,8 @@ textarea#instructions {
 
 .modal-content {
     width: min(600px, 100%);
-    background: rgba(11, 14, 24, 0.98);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--bg);
+    border: 1px solid var(--border);
     border-radius: 1.2rem;
     padding: 1.4rem;
 }
@@ -580,7 +602,7 @@ textarea#instructions {
 }
 
 .feed-waiter {
-    color: var(--accent);
+    color: var(--accent-dark);
     font-size: 0.9rem;
     margin-top: 0.25rem;
 }
@@ -608,8 +630,7 @@ textarea#instructions {
     .no-print { display: none !important; }
 }
 
-/* Thermal printer docket styles */
-.docket { 
+.docket {
     font-family: 'Courier New', monospace;
     font-size: 12px;
     width: 80mm;
@@ -661,28 +682,28 @@ textarea#instructions {
 }
 
 .status-chip.pending {
-    background: rgba(255, 219, 100, 0.16);
-    color: #ffea99;
+    background: rgba(255, 193, 7, 0.16);
+    color: #856404;
 }
 
 .status-chip.preparing {
-    background: rgba(60, 144, 255, 0.16);
-    color: #c1daff;
+    background: rgba(33, 150, 243, 0.16);
+    color: #0d47a1;
 }
 
 .status-chip.ready {
-    background: rgba(38, 208, 125, 0.16);
-    color: #b8f1cf;
+    background: rgba(50, 205, 50, 0.16);
+    color: #1b5e20;
 }
 
 .status-chip.served {
-    background: rgba(255, 92, 122, 0.16);
-    color: #ffb1c0;
+    background: rgba(229, 57, 53, 0.16);
+    color: #b71c1c;
 }
 
 .status-chip.completed {
     background: rgba(108, 117, 125, 0.16);
-    color: #ced4da;
+    color: #495057;
 }
 
 /* ============================================================
@@ -741,6 +762,7 @@ textarea#instructions {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    color: var(--text);
 }
 
 .kanban-count {
@@ -762,7 +784,7 @@ textarea#instructions {
 }
 
 .kanban-card {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 0.85rem;
     padding: 0.85rem;
@@ -770,7 +792,7 @@ textarea#instructions {
 }
 
 .kanban-card:hover {
-    border-color: rgba(60, 144, 255, 0.25);
+    border-color: rgba(50, 205, 50, 0.25);
 }
 
 .kanban-card-header {
@@ -795,7 +817,7 @@ textarea#instructions {
 }
 
 .kanban-card-body .feed-waiter {
-    color: var(--accent);
+    color: var(--accent-dark);
 }
 
 .kanban-card-body .feed-instructions {
@@ -834,17 +856,16 @@ textarea#instructions {
     font-style: italic;
 }
 
-/* Kanban column-specific header colors */
 .kanban-column[data-status="pending"] .kanban-header {
-    border-bottom-color: rgba(255, 219, 100, 0.3);
+    border-bottom-color: rgba(255, 193, 7, 0.3);
 }
 
 .kanban-column[data-status="preparing"] .kanban-header {
-    border-bottom-color: rgba(60, 144, 255, 0.3);
+    border-bottom-color: rgba(33, 150, 243, 0.3);
 }
 
 .kanban-column[data-status="ready"] .kanban-header {
-    border-bottom-color: rgba(38, 208, 125, 0.3);
+    border-bottom-color: rgba(50, 205, 50, 0.3);
 }
 
 .kanban-column[data-status="pending"] .kanban-count {
@@ -853,12 +874,12 @@ textarea#instructions {
 }
 
 .kanban-column[data-status="preparing"] .kanban-count {
-    background: var(--primary);
+    background: #2196F3;
 }
 
 .kanban-column[data-status="ready"] .kanban-count {
-    background: var(--accent);
-    color: #000;
+    background: var(--accent-dark);
+    color: #fff;
 }
 
 /* ============================================================
@@ -872,7 +893,7 @@ textarea#instructions {
 }
 
 .setting-group {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--surface-alt);
     border: 1px solid var(--border);
     border-radius: 1rem;
     padding: 1rem;
@@ -885,7 +906,6 @@ textarea#instructions {
     border-bottom: 1px solid var(--border);
 }
 
-/* Toggle Switch */
 .toggle-container {
     display: flex;
     align-items: center;
@@ -903,7 +923,7 @@ textarea#instructions {
     position: relative;
     width: 52px;
     height: 28px;
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.12);
     border-radius: 14px;
     cursor: pointer;
     transition: background 0.2s ease;
@@ -911,7 +931,7 @@ textarea#instructions {
 }
 
 .toggle-switch.active {
-    background: var(--accent);
+    background: var(--accent-dark);
 }
 
 .toggle-switch::after {

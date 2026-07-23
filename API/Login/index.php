@@ -3,12 +3,21 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../includes/db.php';
 require_once __DIR__ . '/../../includes/utils.php';
 
-date_default_timezone_set('Africa/Lagos');
+use App\Auth;
+use App\CSRF;
+use App\AuditLog;
+use App\RateLimiter;
+use App\Database;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     json_response(['error' => 'Method not allowed'], 405);
 }
+
+$pdo = get_db();
+$auth = new Auth($pdo);
+$auditLog = new AuditLog($pdo);
+$rateLimiter = new RateLimiter($pdo);
 
 $action = trim((string)($_GET['action'] ?? ''));
 
@@ -32,7 +41,6 @@ if ($action === 'add_user') {
         json_response(['error' => 'Name, email, password and valid role are required'], 400);
     }
 
-    $pdo = get_db();
     $checkStmt = $pdo->prepare('SELECT id FROM users WHERE email = :email LIMIT 1');
     $checkStmt->execute([':email' => $email]);
     if ($checkStmt->fetch()) {
@@ -50,12 +58,15 @@ if ($action === 'add_user') {
         ':created_at' => $now,
     ]);
 
-    json_response(['success' => true, 'user_id' => (int)$pdo->lastInsertId()]);
+    $userId = (int)$pdo->lastInsertId();
+    $auditLog->dataChange(0, 'user', $userId, 'create', "Admin created user {$name} ({$email}) with role {$role}");
+
+    json_response(['success' => true, 'user_id' => $userId]);
     exit;
 }
 
 // ============================================================
-// Standard Login
+// Standard Login with Rate Limiting
 // ============================================================
 try {
     $body = get_json_body();
@@ -70,35 +81,35 @@ if ($email === '' || $password === '') {
     json_response(['error' => 'Email and password are required'], 400);
 }
 
-$pdo = get_db();
-$stmt = $pdo->prepare('SELECT id, name, email, password_hash, role FROM users WHERE email = :email LIMIT 1');
-$stmt->execute([':email' => $email]);
-$user = $stmt->fetch();
+// Check rate limiting
+$clientIp = RateLimiter::getClientIp();
+$rateCheck = $rateLimiter->checkLogin($clientIp . '|' . $email);
 
-if (empty($user) || !password_verify($password, $user['password_hash'])) {
+if (!$rateCheck['allowed']) {
+    $auditLog->log(null, 'login_throttled', 'auth', null, "Login throttled for {$email} from {$clientIp}");
+    json_response(['error' => 'Too many login attempts. Please try again later.'], 429);
+}
+
+// Attempt login
+$user = $auth->login($email, $password);
+
+if (empty($user)) {
+    $rateLimiter->recordLoginAttempt($clientIp . '|' . $email, false);
+    $auditLog->log(null, 'login_failed', 'auth', null, "Failed login attempt for {$email} from {$clientIp}");
     json_response(['error' => 'Invalid credentials'], 401);
 }
 
-// ============================================================
-// Session-based auth (web)
-// ============================================================
-session_start();
-session_regenerate_id(true);
+// Successful login
+$rateLimiter->recordLoginAttempt($clientIp . '|' . $email, true);
 
-$_SESSION['user_id'] = (int)$user['id'];
-$_SESSION['username'] = $user['name'];
-$_SESSION['role'] = $user['role'];
+// Create session
+$auth->createSession($user);
 
-// Legacy user array for backward compatibility
-$_SESSION['user'] = [
-    'id' => (int)$user['id'],
-    'name' => $user['name'],
-    'email' => $user['email'],
-    'role' => $user['role'],
-];
+// Audit log
+$auditLog->login($user['id'], true);
 
-// Generate CSRF token for the session
-generate_csrf_token();
+// Generate CSRF token for session
+$csrfToken = CSRF::generate();
 
 // ============================================================
 // Bearer token for Flutter (if requested)
@@ -106,22 +117,33 @@ generate_csrf_token();
 $token = null;
 $requestToken = (bool)($body['request_token'] ?? false);
 if ($requestToken) {
-    $token = generate_auth_token($pdo, (int)$user['id']);
+    $token = $auth->generateToken($user['id']);
 }
 
 // ============================================================
-// Standardized Response
+// Standardized Response with auto-redirect info
 // ============================================================
+$redirectMap = [
+    'waiter' => '/Waiter/index.php',
+    'kitchen' => '/Kitchen/index.php',
+    'bar' => '/Bar/index.php',
+    'manager' => '/Manager/index.php',
+    'supervisor' => '/Manager/index.php',
+    'admin' => '/index.php',
+    'owner' => '/index.php',
+];
+
 $response = [
     'success' => true,
     'data' => [
         'user' => [
-            'id' => (int)$user['id'],
+            'id' => $user['id'],
             'name' => $user['name'],
             'email' => $user['email'],
             'role' => $user['role'],
         ],
-        'csrf_token' => $_SESSION['csrf_token'],
+        'csrf_token' => $csrfToken,
+        'redirect' => $redirectMap[$user['role']] ?? '/index.php',
     ],
     'error' => null,
     'meta' => null,

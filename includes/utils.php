@@ -1,7 +1,32 @@
 <?php
 declare(strict_types=1);
 
-date_default_timezone_set('Africa/Lagos');
+/**
+ * Initialize timezone from database settings.
+ * Falls back to 'Africa/Lagos' if settings table is not available.
+ */
+function init_timezone(): void
+{
+    static $initialized = false;
+    if ($initialized) {
+        return;
+    }
+    $initialized = true;
+
+    try {
+        $pdo = get_db();
+        $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'timezone' LIMIT 1");
+        $stmt->execute();
+        $row = $stmt->fetch();
+        $tz = $row ? $row['setting_value'] : 'Africa/Lagos';
+        date_default_timezone_set($tz);
+    } catch (Throwable $e) {
+        date_default_timezone_set('Africa/Lagos');
+    }
+}
+
+// Initialize timezone on every include
+init_timezone();
 
 /**
  * Get the current timestamp using PHP (not MySQL NOW()) as per requirements.

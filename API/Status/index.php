@@ -11,8 +11,6 @@ require_once __DIR__ . '/../../includes/utils.php';
  * POST /API/Status/index.php              - Update item/order status or mark table paid
  */
 
-date_default_timezone_set('Africa/Lagos');
-
 $pdo = null;
 try {
     $pdo = get_db();
