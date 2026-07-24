@@ -6,7 +6,7 @@
 
 ### Modern Restaurant Point of Sale System for Nigerian Restaurants & Bars
 
-![Version](https://img.shields.io/badge/version-v1.1-red)
+![Version](https://img.shields.io/badge/version-v2.1-red)
 ![Status](https://img.shields.io/badge/status-Stable-success)
 ![Platform](https://img.shields.io/badge/platform-Web-blue)
 ![PHP](https://img.shields.io/badge/PHP-8.x-777BB4)

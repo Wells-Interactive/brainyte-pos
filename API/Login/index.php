@@ -112,12 +112,13 @@ $auditLog->login($user['id'], true);
 $csrfToken = CSRF::generate();
 
 // ============================================================
-// Bearer token for Flutter (if requested)
+// Token pair for Flutter (if requested)
 // ============================================================
-$token = null;
+$tokens = null;
 $requestToken = (bool)($body['request_token'] ?? false);
 if ($requestToken) {
-    $token = $auth->generateToken($user['id']);
+    $deviceName = trim((string)($body['device_name'] ?? ''));
+    $tokens = $auth->generateTokenPair($user['id'], $deviceName);
 }
 
 // ============================================================
@@ -149,10 +150,12 @@ $response = [
     'meta' => null,
 ];
 
-if ($token) {
-    $response['data']['token'] = $token;
+if ($tokens) {
+    $response['data']['access_token'] = $tokens['access_token'];
+    $response['data']['refresh_token'] = $tokens['refresh_token'];
     $response['data']['token_type'] = 'Bearer';
-    $response['data']['expires_in'] = strtotime('+365 days') - time();
+    $response['data']['expires_in'] = $tokens['expires_in'];
+    $response['data']['refresh_expires_in'] = $tokens['refresh_expires_in'];
 }
 
 json_response($response);

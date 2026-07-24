@@ -240,11 +240,156 @@ function get_session_role(): string
 }
 
 // ============================================================
-// BEARER TOKEN AUTH (for Flutter app)
+// BEARER TOKEN AUTH - ACCESS/REFRESH TOKEN PAIR (Flutter app)
 // ============================================================
 
 /**
- * Generate a new Bearer token for a user.
+ * Generate a token pair (access + refresh) for a user.
+ *
+ * Access token: short-lived (30 minutes)
+ * Refresh token: long-lived (60 days)
+ *
+ * @return array{access_token: string, refresh_token: string, expires_in: int, refresh_expires_in: int}
+ */
+function generate_token_pair(PDO $pdo, int $userId, string $deviceName = ''): array
+{
+    $now = date('Y-m-d H:i:s');
+    $accessToken = bin2hex(random_bytes(32));
+    $refreshToken = bin2hex(random_bytes(32));
+    $accessExpiresAt = date('Y-m-d H:i:s', strtotime('+30 minutes'));
+    $refreshExpiresAt = date('Y-m-d H:i:s', strtotime('+60 days'));
+
+    // Ensure auth_tokens has the required columns
+    _ensure_auth_token_columns($pdo);
+
+    $stmt = $pdo->prepare(
+        'INSERT INTO auth_tokens (user_id, token, refresh_token, device_name, expires_at, refresh_expires_at, created_at) 
+         VALUES (:user_id, :token, :refresh_token, :device_name, :expires_at, :refresh_expires_at, :created_at)'
+    );
+    $stmt->execute([
+        ':user_id' => $userId,
+        ':token' => $accessToken,
+        ':refresh_token' => $refreshToken,
+        ':device_name' => $deviceName,
+        ':expires_at' => $accessExpiresAt,
+        ':refresh_expires_at' => $refreshExpiresAt,
+        ':created_at' => $now,
+    ]);
+
+    return [
+        'access_token' => $accessToken,
+        'refresh_token' => $refreshToken,
+        'expires_in' => 1800, // 30 minutes in seconds
+        'refresh_expires_in' => 5184000, // 60 days in seconds
+    ];
+}
+
+/**
+ * Ensure auth_tokens has columns required for token pair support.
+ */
+function _ensure_auth_token_columns(PDO $pdo): void
+{
+    _ensure_token_column($pdo, 'auth_tokens', 'refresh_token', "VARCHAR(64) DEFAULT NULL AFTER `token`");
+    _ensure_token_column($pdo, 'auth_tokens', 'device_name', "VARCHAR(255) DEFAULT NULL");
+    _ensure_token_column($pdo, 'auth_tokens', 'refresh_expires_at', "DATETIME DEFAULT NULL");
+}
+
+/**
+ * Add a column to a table if it doesn't exist.
+ */
+function _ensure_token_column(PDO $pdo, string $table, string $column, string $definition): void
+{
+    try {
+        $stmt = $pdo->query(sprintf('SHOW COLUMNS FROM `%s` LIKE %s', $table, $pdo->quote($column)));
+        if ($stmt->fetch()) {
+            return;
+        }
+        $pdo->exec(sprintf('ALTER TABLE `%s` ADD COLUMN `%s` %s', $table, $column, $definition));
+    } catch (Throwable $e) {
+        // Ignore errors
+    }
+}
+
+/**
+ * Validate an access token and return user data, or null if invalid.
+ */
+function validate_access_token(PDO $pdo, string $token): ?array
+{
+    $stmt = $pdo->prepare(
+        'SELECT u.id, u.name, u.email, u.role, a.id AS token_id
+         FROM auth_tokens a
+         JOIN users u ON u.id = a.user_id
+         WHERE a.token = :token AND a.revoked = 0 AND a.expires_at > :now
+         LIMIT 1'
+    );
+    $stmt->execute([':token' => $token, ':now' => date('Y-m-d H:i:s')]);
+    $row = $stmt->fetch();
+
+    if (!$row) {
+        return null;
+    }
+
+    // Update last_used_at
+    $pdo->prepare('UPDATE auth_tokens SET last_used_at = :now WHERE token = :token')
+        ->execute([':now' => date('Y-m-d H:i:s'), ':token' => $token]);
+
+    return [
+        'id' => (int)$row['id'],
+        'name' => $row['name'],
+        'email' => $row['email'],
+        'role' => $row['role'],
+        'token_id' => (int)$row['token_id'],
+    ];
+}
+
+/**
+ * Validate a refresh token and return new token pair + user data.
+ * Implements token rotation for security (old token is revoked).
+ *
+ * @return array{user: array, tokens: array}|null
+ */
+function validate_refresh_token(PDO $pdo, string $refreshToken, string $deviceName = ''): ?array
+{
+    $stmt = $pdo->prepare(
+        'SELECT a.id AS token_id, a.user_id, u.id, u.name, u.email, u.role, a.device_name
+         FROM auth_tokens a
+         JOIN users u ON u.id = a.user_id
+         WHERE a.refresh_token = :refresh_token 
+           AND a.revoked = 0 
+           AND a.refresh_expires_at > :now
+         LIMIT 1'
+    );
+    $stmt->execute([':refresh_token' => $refreshToken, ':now' => date('Y-m-d H:i:s')]);
+    $row = $stmt->fetch();
+
+    if (!$row) {
+        return null;
+    }
+
+    $userId = (int)$row['user_id'];
+    $deviceName = $deviceName ?: ($row['device_name'] ?? '');
+
+    // Revoke the old token pair (rotation for security)
+    $pdo->prepare('UPDATE auth_tokens SET revoked = 1 WHERE id = :id')
+        ->execute([':id' => (int)$row['token_id']]);
+
+    // Generate new token pair
+    $tokens = generate_token_pair($pdo, $userId, $deviceName);
+
+    return [
+        'user' => [
+            'id' => (int)$row['id'],
+            'name' => $row['name'],
+            'email' => $row['email'],
+            'role' => $row['role'],
+        ],
+        'tokens' => $tokens,
+    ];
+}
+
+/**
+ * Generate a new Bearer token for a user (LEGACY - use generate_token_pair instead).
+ * @deprecated
  */
 function generate_auth_token(PDO $pdo, int $userId, int $daysValid = 365): string
 {
@@ -264,7 +409,8 @@ function generate_auth_token(PDO $pdo, int $userId, int $daysValid = 365): strin
 }
 
 /**
- * Validate a Bearer token and return user data, or null if invalid.
+ * Validate a Bearer token and return user data, or null if invalid (LEGACY).
+ * @deprecated Use validate_access_token() instead.
  */
 function validate_auth_token(PDO $pdo, string $token): ?array
 {
@@ -299,6 +445,42 @@ function revoke_auth_token(PDO $pdo, string $token): void
 }
 
 /**
+ * Revoke all tokens for a specific user.
+ */
+function revoke_all_user_tokens(PDO $pdo, int $userId): void
+{
+    $pdo->prepare('UPDATE auth_tokens SET revoked = 1 WHERE user_id = :user_id')
+        ->execute([':user_id' => $userId]);
+}
+
+/**
+ * Revoke a specific device session by token ID and user ID.
+ */
+function revoke_user_session(PDO $pdo, int $tokenId, int $userId): bool
+{
+    $stmt = $pdo->prepare(
+        'UPDATE auth_tokens SET revoked = 1 WHERE id = :id AND user_id = :user_id'
+    );
+    $stmt->execute([':id' => $tokenId, ':user_id' => $userId]);
+    return $stmt->rowCount() > 0;
+}
+
+/**
+ * List all active sessions (device tokens) for a user.
+ */
+function list_user_sessions(PDO $pdo, int $userId): array
+{
+    $stmt = $pdo->prepare(
+        'SELECT id, device_name, created_at, last_used_at, expires_at, refresh_expires_at
+         FROM auth_tokens
+         WHERE user_id = :user_id AND revoked = 0 AND refresh_expires_at > :now
+         ORDER BY last_used_at DESC'
+    );
+    $stmt->execute([':user_id' => $userId, ':now' => date('Y-m-d H:i:s')]);
+    return $stmt->fetchAll();
+}
+
+/**
  * Get authenticated user from either session or Bearer token.
  * Returns: ['id' => int, 'name' => string, 'email' => string, 'role' => string, 'auth_type' => 'session'|'bearer']
  */
@@ -318,12 +500,12 @@ function get_auth_user(): ?array
         ];
     }
 
-    // Try Bearer token
+    // Try Bearer token (access token)
     $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
     if (preg_match('/^Bearer\s+(.+)$/i', $authHeader, $matches)) {
         try {
             $pdo = get_db();
-            $user = validate_auth_token($pdo, $matches[1]);
+            $user = validate_access_token($pdo, $matches[1]);
             if ($user) {
                 return [
                     'id' => (int)$user['id'],
@@ -365,6 +547,67 @@ function require_role(array $allowedRoles): array
         json_response(['error' => 'Forbidden: insufficient permissions'], 403);
     }
     return $user;
+}
+
+// ============================================================
+// SETUP MODE HELPERS
+// ============================================================
+
+/**
+ * Check if the system has been set up (i.e., at least one admin/owner user exists).
+ */
+function is_setup_complete(PDO $pdo): bool
+{
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role IN ('admin', 'owner')");
+        return (int)$stmt->fetchColumn() > 0;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+/**
+ * Check if setup is complete (alias for is_setup_complete).
+ */
+function is_setup_mode_disabled(PDO $pdo): bool
+{
+    return is_setup_complete($pdo);
+}
+
+/**
+ * Require that setup is complete. Redirects or exits with JSON if not.
+ */
+function require_setup_complete(): void
+{
+    try {
+        $pdo = get_db();
+        if (!is_setup_complete($pdo)) {
+            $isApi = !empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false;
+            if ($isApi) {
+                http_response_code(503);
+                json_response(['error' => 'System not set up. Please complete setup first.'], 503);
+            } else {
+                header('Location: /Setup/index.php');
+                exit;
+            }
+        }
+    } catch (Throwable $e) {
+        header('Location: /Setup/index.php');
+        exit;
+    }
+}
+
+/**
+ * Check if the current request is allowed in setup mode.
+ * Returns true if setup is complete OR if the request targets setup endpoints.
+ */
+function check_setup_access(): bool
+{
+    $requestUri = $_SERVER['REQUEST_URI'] ?? '';
+    if (strpos($requestUri, '/Setup/') !== false || strpos($requestUri, '/API/Setup/') !== false) {
+        return true;
+    }
+    return false;
 }
 
 // ============================================================

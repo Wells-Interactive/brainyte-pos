@@ -243,12 +243,8 @@ if ($method === 'POST') {
                 create_notification($pdo, 'waiter', null, "Table {$tableId} Paid", "Table {$tableId} has been marked as paid via {$paymentMethod}", 'payment', 'order', $orderId);
             }
 
-            $pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')
-                ->execute([':status' => 'available', ':id' => $tableId]);
 
-            $pdo->commit();
-            json_response(['success' => true, 'data' => ['table_id' => $tableId, 'payment_method' => $paymentMethod]]);
-        } catch (Throwable $exception) {
+
             $pdo->rollBack();
             json_response(['error' => 'Unable to mark table as paid'], 500);
         }

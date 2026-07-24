@@ -38,7 +38,8 @@ if (in_array($loggedIn, ['manager', 'supervisor'], true)) {
     exit;
 }
 if (in_array($loggedIn, ['admin', 'owner'], true)) {
-    // Stay on index.php for admin dashboard
+    header('Location: /Admin/index.php');
+    exit;
 }
 $role = $loggedIn ?: 'guest';
 $csrf_token = generate_csrf_token();
@@ -92,9 +93,7 @@ $csrf_token = generate_csrf_token();
                 <button type="submit">Sign In</button>
             </form>
             <div id="loginMessage" class="message"></div>
-            <div class="example-accounts">
-                <strong>Demo accounts</strong>
-                <div>Waiter: waiter@restaurant.local / waiter123</div>
+
                 <div>Kitchen: kitchen@restaurant.local / kitchen123</div>
                 <div>Bar: bar@restaurant.local / bar123</div>
                 <div>Manager: manager@restaurant.local / manager123</div>

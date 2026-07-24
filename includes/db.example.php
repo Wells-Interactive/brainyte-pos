@@ -124,6 +124,7 @@ function ensure_database_schema(PDO $pdo): void
         menu_item_id INT NOT NULL,
         quantity INT NOT NULL DEFAULT 1,
         unit_price DECIMAL(9,2) NOT NULL,
+        instructions TEXT DEFAULT NULL,
         status ENUM('pending', 'preparing', 'ready', 'served', 'completed') NOT NULL DEFAULT 'pending',
         routed_to ENUM('kitchen', 'bar') NOT NULL,
         created_at DATETIME NOT NULL,
@@ -215,13 +216,15 @@ function ensure_database_schema(PDO $pdo): void
     ensure_column($pdo, 'orders', 'special_instructions', 'TEXT DEFAULT NULL');
     ensure_column($pdo, 'orders', 'payment_method', "ENUM('cash', 'pos', 'transfer', 'pending') NOT NULL DEFAULT 'pending'");
     ensure_column($pdo, 'orders', 'updated_at', 'DATETIME NOT NULL');
+    ensure_column($pdo, 'order_items', 'instructions', 'TEXT DEFAULT NULL');
     ensure_column($pdo, 'order_items', 'created_at', 'DATETIME NOT NULL');
     ensure_user_role_enum($pdo);
     ensure_table_status_enum($pdo);
     ensure_menu_category_enum($pdo);
     ensure_order_item_status_enum($pdo);
 
-    // Default settings
+    // Default settings only (no demo users in production)
+    // For development seed data, run: docs/seed_demo.sql
     $defaultSettings = [
         ['restaurant_name', '6th June POS'],
         ['logo_url', '/assets/images/brainyte-icon.png'],
@@ -235,33 +238,6 @@ function ensure_database_schema(PDO $pdo): void
     $settingStmt = $pdo->prepare('INSERT IGNORE INTO settings (setting_key, setting_value, updated_at) VALUES (:key, :value, :updated_at)');
     foreach ($defaultSettings as $setting) {
         $settingStmt->execute([':key' => $setting[0], ':value' => $setting[1], ':updated_at' => $now]);
-    }
-
-    // Demo Users
-    $demoUsers = [
-        ['name' => 'Waiter User', 'email' => 'waiter@restaurant.local', 'password' => 'waiter123', 'role' => 'waiter'],
-        ['name' => 'Kitchen User', 'email' => 'kitchen@restaurant.local', 'password' => 'kitchen123', 'role' => 'kitchen'],
-        ['name' => 'Bar User', 'email' => 'bar@restaurant.local', 'password' => 'bar123', 'role' => 'bar'],
-        ['name' => 'Manager User', 'email' => 'manager@restaurant.local', 'password' => 'manager123', 'role' => 'manager'],
-        ['name' => 'Supervisor User', 'email' => 'supervisor@restaurant.local', 'password' => 'supervisor123', 'role' => 'supervisor'],
-        ['name' => 'Admin User', 'email' => 'admin@restaurant.local', 'password' => 'admin123', 'role' => 'admin'],
-        ['name' => 'Bar Owner', 'email' => 'owner@restaurant.local', 'password' => 'owner123', 'role' => 'owner'],
-    ];
-    $stmt = $pdo->prepare('INSERT INTO users (name, email, password_hash, role, created_at) VALUES (:name, :email, :password_hash, :role, :created_at) ON DUPLICATE KEY UPDATE name = VALUES(name), password_hash = VALUES(password_hash), role = VALUES(role)');
-    foreach ($demoUsers as $user) {
-        $stmt->execute([
-            ':name' => $user['name'],
-            ':email' => $user['email'],
-            ':password_hash' => password_hash($user['password'], PASSWORD_BCRYPT),
-            ':role' => $user['role'],
-            ':created_at' => $now,
-        ]);
-    }
-
-    // Demo Tables (20)
-    $tableStmt = $pdo->prepare('INSERT IGNORE INTO restaurant_tables (id, name, status, created_at) VALUES (:id, :name, :status, :created_at)');
-    for ($i = 1; $i <= 20; $i++) {
-        $tableStmt->execute([':id' => $i, ':name' => "Table {$i}", ':status' => 'available', ':created_at' => $now]);
     }
 }
 
@@ -283,3 +259,6 @@ function get_db(): PDO
     ensure_database_schema($pdo);
     return $pdo;
 }
+</｜｜DSML｜｜parameter>
+</invoke>
+</｜｜DSML｜｜tool_calls>

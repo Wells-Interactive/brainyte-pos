@@ -89,10 +89,10 @@ class Order
             // Log order creation
             $this->logHistory($orderId, null, null, 'pending', $waiterId, 'Order created');
 
-            // Process items
+            // Process items - DB only, no fallback
             $insertItemStmt = $this->pdo->prepare(
-                'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, status, routed_to, created_at)
-                 VALUES (:order_id, :menu_item_id, :quantity, :unit_price, :status, :routed_to, :created_at)'
+                'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, instructions, status, routed_to, created_at)
+                 VALUES (:order_id, :menu_item_id, :quantity, :unit_price, :instructions, :status, :routed_to, :created_at)'
             );
 
             $notificationService = new Notification($this->pdo);
@@ -100,17 +100,14 @@ class Order
             foreach ($items as $item) {
                 $menuItemId = (int)($item['menu_item_id'] ?? 0);
                 $quantity = max(1, (int)($item['quantity'] ?? 1));
+                $itemInstructions = isset($item['instructions']) ? trim((string)$item['instructions']) : null;
 
                 if ($menuItemId <= 0) {
                     continue;
                 }
 
+                // DB-authoritative lookup only
                 $product = $menuItemService->getById($menuItemId);
-
-                // Try to create fallback if missing
-                if (!$product) {
-                    $product = $menuItemService->ensureFallbackItem($menuItemId);
-                }
 
                 if (!$product) {
                     continue;
@@ -123,6 +120,7 @@ class Order
                     ':menu_item_id' => $menuItemId,
                     ':quantity' => $quantity,
                     ':unit_price' => $product['price'],
+                    ':instructions' => $itemInstructions,
                     ':status' => 'pending',
                     ':routed_to' => $routedTo,
                     ':created_at' => $now,
@@ -250,7 +248,7 @@ class Order
         foreach ($orders as &$order) {
             $orderIdVal = (int)$order['id'];
 
-            $itemSql = 'SELECT oi.id, oi.menu_item_id, mi.name AS item_name, oi.quantity, oi.unit_price, oi.status, oi.routed_to, oi.created_at
+            $itemSql = 'SELECT oi.id, oi.menu_item_id, mi.name AS item_name, oi.quantity, oi.unit_price, oi.instructions, oi.status, oi.routed_to, oi.created_at
                         FROM order_items oi
                         JOIN menu_items mi ON mi.id = oi.menu_item_id
                         WHERE oi.order_id = :order_id';
@@ -374,7 +372,7 @@ class Order
 
             $this->logHistory($orderId, null, $oldStatus, $newStatus, $changedByUserId, 'Bulk order status update');
 
-            // If completed, free the table
+            // If completed, free the table (with active order check)
             if ($newStatus === 'completed') {
                 $this->freeTable($orderId);
             }
@@ -395,7 +393,7 @@ class Order
     }
 
     /**
-     * Mark an order as paid (completes order and frees table).
+     * Mark an order as paid (completes order and frees table with active order check).
      */
     public function markPaid(int $orderId, string $paymentMethod, int $changedByUserId): array
     {
@@ -431,9 +429,8 @@ class Order
 
             $this->logHistory($orderId, null, $oldStatus, 'completed', $changedByUserId, "Payment: {$paymentMethod}");
 
-            // Free the table
-            $this->pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')
-                ->execute([':status' => 'available', ':id' => $order['table_id']]);
+            // Free the table with active order check
+            $this->freeTable($orderId);
 
             // Notify waiter
             $notificationService = new Notification($this->pdo);
@@ -556,15 +553,31 @@ class Order
 
     /**
      * Free the table associated with an order.
+     * Only sets table to 'available' if there are no other active orders for the same table.
      */
     private function freeTable(int $orderId): void
     {
         $tableStmt = $this->pdo->prepare('SELECT table_id FROM orders WHERE id = :id');
         $tableStmt->execute([':id' => $orderId]);
         $tableRow = $tableStmt->fetch();
-        if ($tableRow) {
+        
+        if (!$tableRow) {
+            return;
+        }
+
+        $tableId = (int)$tableRow['table_id'];
+
+        // Check if there are other active (non-completed) orders for this table
+        $activeStmt = $this->pdo->prepare(
+            "SELECT COUNT(*) FROM orders WHERE table_id = :table_id AND status != 'completed' AND id != :exclude_id"
+        );
+        $activeStmt->execute([':table_id' => $tableId, ':exclude_id' => $orderId]);
+        $activeCount = (int)$activeStmt->fetchColumn();
+
+        // Only free table if no other active orders exist
+        if ($activeCount === 0) {
             $this->pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')
-                ->execute([':status' => 'available', ':id' => $tableRow['table_id']]);
+                ->execute([':status' => 'available', ':id' => $tableId]);
         }
     }
 

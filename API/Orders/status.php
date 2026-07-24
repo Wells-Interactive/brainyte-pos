@@ -57,19 +57,26 @@ if ($paymentMethod !== null && $orderId > 0) {
         $pdo->prepare('UPDATE order_items SET status = :status WHERE order_id = :order_id')
             ->execute([':status' => 'completed', ':order_id' => $orderId]);
 
-        // Free the table
+        // Free the table - check for other active orders first
         $tableStmt = $pdo->prepare('SELECT table_id FROM orders WHERE id = :id');
         $tableStmt->execute([':id' => $orderId]);
         $tableRow = $tableStmt->fetch();
         if ($tableRow) {
-            $pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')
-                ->execute([':status' => 'available', ':id' => $tableRow['table_id']]);
+            $tableId = (int)$tableRow['table_id'];
+            $activeStmt = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE table_id = :table_id AND status != 'completed' AND id != :exclude_id");
+            $activeStmt->execute([':table_id' => $tableId, ':exclude_id' => $orderId]);
+            $activeCount = (int)$activeStmt->fetchColumn();
+            if ($activeCount === 0) {
+                $pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')
+                    ->execute([':status' => 'available', ':id' => $tableId]);
+            }
         }
 
         $pdo->commit();
         json_response(['success' => true, 'data' => ['order_id' => $orderId, 'status' => 'completed', 'payment_method' => $paymentMethod]]);
     } catch (Throwable $e) {
         $pdo->rollBack();
+        error_log('Payment status update error: ' . $e->getMessage());
         json_response(['error' => 'Unable to update payment status'], 500);
     }
 }
@@ -156,13 +163,19 @@ if ($itemId > 0) {
                     ->execute([':status' => 'completed', ':updated_at' => $now, ':order_id' => $orderItemOrderId]);
                 log_order_status_history($pdo, $orderItemOrderId, null, 'served', 'completed', $authUser['id']);
 
-                // Free table
+                // Free table - check for other active orders first
                 $tableStmt = $pdo->prepare('SELECT table_id FROM orders WHERE id = :id');
                 $tableStmt->execute([':id' => $orderItemOrderId]);
                 $tableRow = $tableStmt->fetch();
                 if ($tableRow) {
-                    $pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')
-                        ->execute([':status' => 'available', ':id' => $tableRow['table_id']]);
+                    $tableId = (int)$tableRow['table_id'];
+                    $activeStmt = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE table_id = :table_id AND status != 'completed' AND id != :exclude_id");
+                    $activeStmt->execute([':table_id' => $tableId, ':exclude_id' => $orderItemOrderId]);
+                    $activeCount = (int)$activeStmt->fetchColumn();
+                    if ($activeCount === 0) {
+                        $pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')
+                            ->execute([':status' => 'available', ':id' => $tableId]);
+                    }
                 }
             }
         }
@@ -170,6 +183,7 @@ if ($itemId > 0) {
         $pdo->commit();
     } catch (Throwable $exception) {
         $pdo->rollBack();
+        error_log('Order item status update error: ' . $exception->getMessage());
         json_response(['error' => 'Unable to update order status'], 500);
     }
 
@@ -195,18 +209,26 @@ if ($orderId > 0) {
         log_order_status_history($pdo, $orderId, null, $oldStatus, $newStatus, $authUser['id'], 'Bulk order status update');
 
         if ($newStatus === 'completed') {
+            // Free table - check for other active orders first
             $tableStmt = $pdo->prepare('SELECT table_id FROM orders WHERE id = :id');
             $tableStmt->execute([':id' => $orderId]);
             $tableRow = $tableStmt->fetch();
             if ($tableRow) {
-                $pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')
-                    ->execute([':status' => 'available', ':id' => $tableRow['table_id']]);
+                $tableId = (int)$tableRow['table_id'];
+                $activeStmt = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE table_id = :table_id AND status != 'completed' AND id != :exclude_id");
+                $activeStmt->execute([':table_id' => $tableId, ':exclude_id' => $orderId]);
+                $activeCount = (int)$activeStmt->fetchColumn();
+                if ($activeCount === 0) {
+                    $pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')
+                        ->execute([':status' => 'available', ':id' => $tableId]);
+                }
             }
         }
 
         $pdo->commit();
     } catch (Throwable $exception) {
         $pdo->rollBack();
+        error_log('Order status update error: ' . $exception->getMessage());
         json_response(['error' => 'Unable to update order status'], 500);
     }
 
