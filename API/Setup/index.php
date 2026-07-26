@@ -144,7 +144,8 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    json_response(['error' => 'Unable to complete setup: ' . $e->getMessage()], 500);
+    error_log('Setup error: ' . $e->getMessage());
+    json_response(['success' => false, 'error' => 'Unable to complete setup'], 500);
 }
 
 json_response([

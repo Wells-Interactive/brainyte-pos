@@ -85,21 +85,13 @@ $csrf_token = generate_csrf_token();
         <?php if (!$loggedIn): ?>
         <section class="card">
             <h2>Login</h2>
-            <form id="loginForm" class="form-grid">
+<form id="loginForm" class="form-grid">
                 <label for="email">Email</label>
                 <input type="email" id="email" name="email" autocomplete="username" required />
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" autocomplete="current-password" required />
                 <button type="submit">Sign In</button>
             </form>
-            <div id="loginMessage" class="message"></div>
-
-                <div>Kitchen: kitchen@restaurant.local / kitchen123</div>
-                <div>Bar: bar@restaurant.local / bar123</div>
-                <div>Manager: manager@restaurant.local / manager123</div>
-                <div>Supervisor: supervisor@restaurant.local / supervisor123</div>
-                <div>Admin: admin@restaurant.local / admin123</div>
-                <div>Owner: owner@restaurant.local / owner123</div>
         </section>
         <?php endif; ?>
 

@@ -16,10 +16,11 @@ if ($method === 'GET') {
     try {
         $pdo = get_db();
         $menuItem = new MenuItem($pdo);
-        $items = $menuItem->getAvailable($category);
+$items = $menuItem->getAll($category);
         json_response(['items' => $items]);
     } catch (Throwable $exception) {
-        json_response(['error' => 'Unable to load menu items'], 500);
+        error_log('Menu load error: ' . $exception->getMessage());
+        json_response(['success' => false, 'error' => 'Unable to load menu items'], 500);
     }
     return;
 }
@@ -54,7 +55,8 @@ if ($method === 'POST' || $method === 'PUT') {
             $auditLog->dataChange($authUser['id'], 'menu_item', $itemId, 'create', "Created menu item {$name} ({$cat}) at ₦{$price}");
             json_response(['success' => true, 'item_id' => $itemId]);
         } catch (Throwable $exception) {
-            json_response(['error' => 'Unable to create menu item'], 500);
+            error_log('Menu item creation error: ' . $exception->getMessage());
+            json_response(['success' => false, 'error' => 'Unable to create menu item'], 500);
         }
         return;
     }
@@ -72,7 +74,8 @@ if ($method === 'POST' || $method === 'PUT') {
             $auditLog->dataChange($authUser['id'], 'menu_item', $itemId, 'update_price', "Updated menu item #{$itemId} price to ₦{$price}");
             json_response(['success' => true]);
         } catch (Throwable $exception) {
-            json_response(['error' => 'Unable to update menu item'], 500);
+            error_log('Menu item update error: ' . $exception->getMessage());
+            json_response(['success' => false, 'error' => 'Unable to update menu item'], 500);
         }
         return;
     }

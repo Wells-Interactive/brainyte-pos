@@ -44,7 +44,7 @@ foreach ($orders as $order) {
 
     if ($role === 'kitchen' || $role === 'bar') {
         $itemStmt = $pdo->prepare(
-            'SELECT oi.id, oi.menu_item_id, mi.name AS item_name, oi.quantity, oi.unit_price, oi.status, oi.routed_to, oi.created_at
+            'SELECT oi.id, oi.menu_item_id, mi.name AS item_name, oi.quantity, oi.unit_price, oi.status, oi.routed_to, oi.created_at, oi.instructions
              FROM order_items oi
              JOIN menu_items mi ON mi.id = oi.menu_item_id
              WHERE oi.order_id = :order_id AND oi.routed_to = :role
@@ -53,7 +53,7 @@ foreach ($orders as $order) {
         $itemStmt->execute([':order_id' => $orderId, ':role' => $role]);
     } else {
         $itemStmt = $pdo->prepare(
-            'SELECT oi.id, oi.menu_item_id, mi.name AS item_name, oi.quantity, oi.unit_price, oi.status, oi.routed_to, oi.created_at
+            'SELECT oi.id, oi.menu_item_id, mi.name AS item_name, oi.quantity, oi.unit_price, oi.status, oi.routed_to, oi.created_at, oi.instructions
              FROM order_items oi
              JOIN menu_items mi ON mi.id = oi.menu_item_id
              WHERE oi.order_id = :order_id

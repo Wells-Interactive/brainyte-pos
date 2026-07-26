@@ -109,7 +109,8 @@ if ($method === 'GET') {
                 ],
             ]);
         } catch (Throwable $exception) {
-            json_response(['error' => 'Unable to load statistics'], 500);
+            error_log('Statistics load error: ' . $exception->getMessage());
+            json_response(['success' => false, 'error' => 'Unable to load statistics'], 500);
         }
         return;
     }
@@ -243,10 +244,22 @@ if ($method === 'POST') {
                 create_notification($pdo, 'waiter', null, "Table {$tableId} Paid", "Table {$tableId} has been marked as paid via {$paymentMethod}", 'payment', 'order', $orderId);
             }
 
+            // Free table only if no other active orders remain
+            $excludeOrderId = isset($order) && $order ? (int)$order['id'] : 0;
+            $activeStmt = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE table_id = :table_id AND status != 'completed' AND id != :exclude_id");
+            $activeStmt->execute([':table_id' => $tableId, ':exclude_id' => $excludeOrderId]);
+            $activeCount = (int)$activeStmt->fetchColumn();
+            if ($activeCount === 0) {
+                $pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')
+                    ->execute([':status' => 'available', ':id' => $tableId]);
+            }
 
-
+            $pdo->commit();
+            json_response(['success' => true, 'data' => ['table_id' => $tableId, 'payment_method' => $paymentMethod]]);
+        } catch (Throwable $exception) {
             $pdo->rollBack();
-            json_response(['error' => 'Unable to mark table as paid'], 500);
+            error_log('Mark table paid error: ' . $exception->getMessage());
+            json_response(['success' => false, 'error' => 'Unable to mark table as paid'], 500);
         }
         return;
     }
@@ -327,12 +340,18 @@ if ($method === 'POST') {
                     ->execute([':status' => 'completed', ':updated_at' => $now, ':order_id' => $orderId]);
                 log_order_status_history($pdo, $orderId, null, 'served', 'completed', $authUser['id']);
 
+                // Free table only if no other active orders remain for this table
                 $tableStmt = $pdo->prepare('SELECT table_id FROM orders WHERE id = :id');
                 $tableStmt->execute([':id' => $orderId]);
                 $tableRow = $tableStmt->fetch();
                 if ($tableRow) {
-                    $pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')
-                        ->execute([':status' => 'available', ':id' => $tableRow['table_id']]);
+                    $activeStmt = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE table_id = :table_id AND status != 'completed' AND id != :exclude_id");
+                    $activeStmt->execute([':table_id' => $tableRow['table_id'], ':exclude_id' => $orderId]);
+                    $activeCount = (int)$activeStmt->fetchColumn();
+                    if ($activeCount === 0) {
+                        $pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')
+                            ->execute([':status' => 'available', ':id' => $tableRow['table_id']]);
+                    }
                 }
             }
         }
@@ -340,7 +359,8 @@ if ($method === 'POST') {
         $pdo->commit();
     } catch (Throwable $exception) {
         $pdo->rollBack();
-        json_response(['error' => 'Unable to update order status'], 500);
+        error_log('Order status update error: ' . $exception->getMessage());
+        json_response(['success' => false, 'error' => 'Unable to update order status'], 500);
     }
 
     json_response(['success' => true, 'data' => ['item_id' => $itemId, 'status' => $newStatus, 'order_id' => $orderItem['order_id'] ?? 0]]);

@@ -77,7 +77,7 @@ if ($paymentMethod !== null && $orderId > 0) {
     } catch (Throwable $e) {
         $pdo->rollBack();
         error_log('Payment status update error: ' . $e->getMessage());
-        json_response(['error' => 'Unable to update payment status'], 500);
+        json_response(['success' => false, 'error' => 'Unable to update payment status'], 500);
     }
 }
 
@@ -184,7 +184,7 @@ if ($itemId > 0) {
     } catch (Throwable $exception) {
         $pdo->rollBack();
         error_log('Order item status update error: ' . $exception->getMessage());
-        json_response(['error' => 'Unable to update order status'], 500);
+        json_response(['success' => false, 'error' => 'Unable to update order status'], 500);
     }
 
     json_response(['success' => true, 'data' => ['item_id' => $itemId, 'status' => $newStatus]]);
@@ -229,7 +229,7 @@ if ($orderId > 0) {
     } catch (Throwable $exception) {
         $pdo->rollBack();
         error_log('Order status update error: ' . $exception->getMessage());
-        json_response(['error' => 'Unable to update order status'], 500);
+        json_response(['success' => false, 'error' => 'Unable to update order status'], 500);
     }
 
     json_response(['success' => true, 'data' => ['order_id' => $orderId, 'status' => $newStatus]]);

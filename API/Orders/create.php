@@ -150,7 +150,7 @@ try {
         $pdo->rollBack();
     }
     error_log('Order creation error: ' . $exception->getMessage());
-    json_response(['error' => 'Unable to save order'], 500);
+    json_response(['success' => false, 'error' => 'Unable to save order'], 500);
 }
 
 // Check if direct_printing is enabled

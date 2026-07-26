@@ -18,6 +18,9 @@ function ensure_column(PDO $pdo, string $table, string $column, string $definiti
     $pdo->exec(sprintf('ALTER TABLE `%s` ADD COLUMN `%s` %s', $table, $column, $definition));
 }
 
+/**
+ * Ensure the order_items status enum includes all values.
+ */
 function ensure_order_item_status_enum(PDO $pdo): void
 {
     $stmt = $pdo->query("SHOW COLUMNS FROM order_items LIKE 'status'");
@@ -31,6 +34,9 @@ function ensure_order_item_status_enum(PDO $pdo): void
     }
 }
 
+/**
+ * Ensure the restaurant_tables status enum includes all values.
+ */
 function ensure_table_status_enum(PDO $pdo): void
 {
     $stmt = $pdo->query("SHOW COLUMNS FROM restaurant_tables LIKE 'status'");
@@ -44,6 +50,9 @@ function ensure_table_status_enum(PDO $pdo): void
     }
 }
 
+/**
+ * Ensure the users role enum includes all values.
+ */
 function ensure_user_role_enum(PDO $pdo): void
 {
     $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'role'");
@@ -57,6 +66,9 @@ function ensure_user_role_enum(PDO $pdo): void
     }
 }
 
+/**
+ * Ensure the menu_items category enum includes all values.
+ */
 function ensure_menu_category_enum(PDO $pdo): void
 {
     $stmt = $pdo->query("SHOW COLUMNS FROM menu_items LIKE 'category'");
@@ -70,6 +82,9 @@ function ensure_menu_category_enum(PDO $pdo): void
     }
 }
 
+/**
+ * Create or update database tables.
+ */
 function ensure_database_schema(PDO $pdo): void
 {
     $now = date('Y-m-d H:i:s');
@@ -103,7 +118,7 @@ function ensure_database_schema(PDO $pdo): void
         created_at DATETIME NOT NULL
     ) ENGINE=InnoDB");
 
-    // Orders
+    // Orders (with payment_status, total_amount, paid_amount)
     $pdo->exec("CREATE TABLE IF NOT EXISTS orders (
         id INT AUTO_INCREMENT PRIMARY KEY,
         table_id INT NOT NULL,
@@ -111,13 +126,21 @@ function ensure_database_schema(PDO $pdo): void
         status ENUM('pending', 'preparing', 'ready', 'served', 'completed') NOT NULL DEFAULT 'pending',
         special_instructions TEXT DEFAULT NULL,
         payment_method ENUM('cash', 'pos', 'transfer', 'pending') NOT NULL DEFAULT 'pending',
+        payment_status ENUM('unpaid', 'partial', 'paid', 'refunded', 'voided') NOT NULL DEFAULT 'unpaid',
+        total_amount DECIMAL(9,2) NOT NULL DEFAULT 0.00,
+        paid_amount DECIMAL(9,2) NOT NULL DEFAULT 0.00,
         created_at DATETIME NOT NULL,
         updated_at DATETIME NOT NULL,
+        INDEX idx_orders_table_status (table_id, status),
+        INDEX idx_orders_waiter_created (waiter_id, created_at),
+        INDEX idx_orders_status_created (status, created_at),
+        INDEX idx_orders_created (created_at),
+        INDEX idx_orders_payment_status (payment_status),
         FOREIGN KEY (table_id) REFERENCES restaurant_tables(id) ON DELETE RESTRICT,
         FOREIGN KEY (waiter_id) REFERENCES users(id) ON DELETE RESTRICT
     ) ENGINE=InnoDB");
 
-    // Order Items
+    // Order Items (with updated_at and indexes)
     $pdo->exec("CREATE TABLE IF NOT EXISTS order_items (
         id INT AUTO_INCREMENT PRIMARY KEY,
         order_id INT NOT NULL,
@@ -128,11 +151,16 @@ function ensure_database_schema(PDO $pdo): void
         status ENUM('pending', 'preparing', 'ready', 'served', 'completed') NOT NULL DEFAULT 'pending',
         routed_to ENUM('kitchen', 'bar') NOT NULL,
         created_at DATETIME NOT NULL,
+        updated_at DATETIME DEFAULT NULL,
+        INDEX idx_order_items_order (order_id),
+        INDEX idx_order_items_routed_status (routed_to, status),
+        INDEX idx_order_items_created (created_at),
+        INDEX idx_order_items_order_routed (order_id, routed_to),
         FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
         FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE RESTRICT
     ) ENGINE=InnoDB");
 
-    // Order Status History
+    // Order Status History (with indexes)
     $pdo->exec("CREATE TABLE IF NOT EXISTS order_status_history (
         id INT AUTO_INCREMENT PRIMARY KEY,
         order_id INT DEFAULT NULL,
@@ -142,12 +170,15 @@ function ensure_database_schema(PDO $pdo): void
         changed_by_user_id INT DEFAULT NULL,
         notes TEXT DEFAULT NULL,
         created_at DATETIME NOT NULL,
+        INDEX idx_osh_order_created (order_id, created_at),
+        INDEX idx_osh_item_created (order_item_id, created_at),
+        INDEX idx_osh_created (created_at),
         FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
         FOREIGN KEY (order_item_id) REFERENCES order_items(id) ON DELETE SET NULL,
         FOREIGN KEY (changed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
     ) ENGINE=InnoDB");
 
-    // Notifications Queue
+    // Notifications (with indexes)
     $pdo->exec("CREATE TABLE IF NOT EXISTS notifications (
         id INT AUTO_INCREMENT PRIMARY KEY,
         target_role ENUM('waiter', 'kitchen', 'bar', 'manager', 'supervisor', 'admin', 'owner', 'all') NOT NULL DEFAULT 'all',
@@ -160,19 +191,58 @@ function ensure_database_schema(PDO $pdo): void
         is_read TINYINT(1) NOT NULL DEFAULT 0,
         sent_to_push TINYINT(1) NOT NULL DEFAULT 0,
         created_at DATETIME NOT NULL,
+        INDEX idx_notifications_role_read_created (target_role, is_read, created_at),
+        INDEX idx_notifications_user_read (target_user_id, is_read),
+        INDEX idx_notifications_type (type),
         FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE SET NULL
     ) ENGINE=InnoDB");
 
-    // Auth Tokens (with revoked column)
+    // Auth Tokens (with refresh_token, device_name, refresh_expires_at)
     $pdo->exec("CREATE TABLE IF NOT EXISTS auth_tokens (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
         token VARCHAR(64) NOT NULL UNIQUE,
+        refresh_token VARCHAR(64) DEFAULT NULL,
+        device_name VARCHAR(255) DEFAULT NULL,
         expires_at DATETIME NOT NULL,
-        created_at DATETIME NOT NULL,
+        refresh_expires_at DATETIME DEFAULT NULL,
         last_used_at DATETIME DEFAULT NULL,
         revoked TINYINT(1) NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL,
+        INDEX idx_auth_tokens_user (user_id),
+        INDEX idx_auth_tokens_expires (expires_at),
+        INDEX idx_auth_tokens_refresh (refresh_token),
+        INDEX idx_auth_tokens_user_revoked (user_id, revoked),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB");
+
+    // Print Jobs
+    $pdo->exec("CREATE TABLE IF NOT EXISTS print_jobs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        order_item_id INT NOT NULL,
+        order_id INT NOT NULL,
+        department ENUM('kitchen', 'bar') NOT NULL,
+        printer VARCHAR(50) NOT NULL DEFAULT 'default',
+        status ENUM('pending', 'printing', 'completed', 'failed', 'cancelled') NOT NULL DEFAULT 'pending',
+        attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+        last_error TEXT DEFAULT NULL,
+        printed_at DATETIME DEFAULT NULL,
+        created_at DATETIME NOT NULL,
+        INDEX idx_print_jobs_status (status),
+        INDEX idx_print_jobs_order (order_id),
+        INDEX idx_print_jobs_department_status (department, status),
+        INDEX idx_print_jobs_created (created_at),
+        FOREIGN KEY (order_item_id) REFERENCES order_items(id) ON DELETE CASCADE,
+        FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB");
+
+    // Schema Migrations Tracking
+    $pdo->exec("CREATE TABLE IF NOT EXISTS schema_migrations (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        migration VARCHAR(255) NOT NULL UNIQUE,
+        batch INT NOT NULL DEFAULT 1,
+        executed_at DATETIME NOT NULL,
+        INDEX idx_migrations (migration)
     ) ENGINE=InnoDB");
 
     // Settings
@@ -224,9 +294,8 @@ function ensure_database_schema(PDO $pdo): void
     ensure_order_item_status_enum($pdo);
 
     // Default settings only (no demo users in production)
-    // For development seed data, run: docs/seed_demo.sql
     $defaultSettings = [
-        ['restaurant_name', '6th June POS'],
+        ['restaurant_name', 'Restaurant POS'],
         ['logo_url', '/assets/images/brainyte-icon.png'],
         ['vat_rate', '0.00'],
         ['currency', 'NGN'],
@@ -241,6 +310,9 @@ function ensure_database_schema(PDO $pdo): void
     }
 }
 
+/**
+ * Get the PDO database connection (singleton).
+ */
 function get_db(): PDO
 {
     static $pdo = null;
@@ -259,6 +331,3 @@ function get_db(): PDO
     ensure_database_schema($pdo);
     return $pdo;
 }
-</｜｜DSML｜｜parameter>
-</invoke>
-</｜｜DSML｜｜tool_calls>

@@ -42,29 +42,6 @@ const categoryLabels = {
     'cigarettes': 'Cigarettes',
 };
 
-const fallbackMenuItems = {
-    beer: [{ id: 101, name: 'Star Lager', description: 'Chilled Nigerian lager.', price: 700, category: 'beer' }],
-    malt: [{ id: 104, name: 'Amstel Malta', description: 'Sweet non-alcoholic malt drink.', price: 450, category: 'malt' }],
-    'soft-drinks': [{ id: 106, name: 'Coca-Cola', description: 'Classic cola soda.', price: 350, category: 'soft-drinks' }],
-    water: [{ id: 108, name: 'Eva Water', description: 'Purified drinking water.', price: 200, category: 'water' }],
-    'energy-drinks': [{ id: 110, name: 'Fearless', description: 'Energy drink.', price: 900, category: 'energy-drinks' }],
-    juice: [{ id: 112, name: 'Five Alive', description: 'Mixed fruit juice.', price: 600, category: 'juice' }],
-    spirits: [{ id: 114, name: 'Jameson', description: 'Irish whiskey.', price: 9500, category: 'spirits' }],
-    'ready-to-drink': [{ id: 116, name: 'Smirnoff Ice', description: 'Ready-to-drink malt beverage.', price: 950, category: 'ready-to-drink' }],
-    rice: [{ id: 201, name: 'Jollof Rice', description: 'Classic Nigerian jollof.', price: 2400, category: 'rice' }],
-    'pepper-soup': [{ id: 301, name: 'Goat Meat Pepper Soup', description: 'Spicy pepper soup.', price: 3200, category: 'pepper-soup' }],
-    grills: [{ id: 401, name: 'Catfish Grill', description: 'Smoked catfish.', price: 4200, category: 'grills' }],
-    soups: [{ id: 501, name: 'Egusi Soup', description: 'Thick egusi soup.', price: 3000, category: 'soups' }],
-    swallow: [{ id: 601, name: 'Pounded Yam', description: 'Smooth pounded yam.', price: 1800, category: 'swallow' }],
-    extras: [{ id: 701, name: 'Plantain', description: 'Fried ripe plantain.', price: 1200, category: 'extras' }],
-    cigarettes: [
-        { id: 706, name: 'Marlboro Red', description: 'Premium cigarette pack.', price: 1500, category: 'cigarettes' },
-        { id: 707, name: 'Royal Classic', description: 'Classic cigarette pack.', price: 1400, category: 'cigarettes' },
-        { id: 708, name: 'Brown Benson', description: 'Premium cigarette pack.', price: 2000, category: 'cigarettes' },
-        { id: 709, name: 'Benson Switch', description: 'Premium cigarette pack.', price: 2000, category: 'cigarettes' },
-    ],
-};
-
 function formatCurrency(value) {
     return new Intl.NumberFormat('en-NG', {
         style: 'currency',
@@ -109,9 +86,7 @@ async function fetchMenu(category = 'water') {
     try {
         const response = await fetch(`/API/Menu/index.php?category=${encodeURIComponent(category)}`);
         const data = await response.json();
-        const items = Array.isArray(data.items) && data.items.length > 0
-            ? data.items
-            : (fallbackMenuItems[category] ?? []);
+        const items = Array.isArray(data.items) && data.items.length > 0 ? data.items : [];
 
         if (items.length === 0) {
             currentMenuItems = [];
@@ -148,34 +123,8 @@ async function fetchMenu(category = 'water') {
 
         updateMenuCardState();
     } catch (error) {
-        currentMenuItems = fallbackMenuItems[category] ?? [];
-        menuList.innerHTML = currentMenuItems.length > 0
-            ? currentMenuItems.map((item) => {
-                const existing = orderItems.find((entry) => entry.menu_item_id === item.id);
-                const quantity = existing ? existing.quantity : 0;
-                return `
-                <article class="menu-card ${quantity > 0 ? 'selected' : ''}" data-id="${item.id}" data-name="${item.name}" data-price="${item.price}" data-category="${item.category}">
-                    <div class="menu-card-header">
-                        <div>
-                            <h3>${item.name}</h3>
-                            <p>${item.description}</p>
-                        </div>
-                        <div class="item-meta">
-                            <span>${categoryLabels[item.category] || item.category}</span>
-                            <span>${formatCurrency(Number(item.price))}</span>
-                        </div>
-                    <div class="menu-card-footer">
-                        <div class="quantity-display">Qty: <strong class="item-count">${quantity}</strong></div>
-                        <div class="card-actions">
-                            <button type="button" class="control-button" data-action="decrease">-</button>
-                            <button type="button" class="control-button" data-action="increase">+</button>
-                        </div>
-                        <div class="card-click-tip">Tap card to add</div>
-                </article>`;
-            }).join('')
-            : '<div class="menu-message">Unable to load menu items right now.</div>';
-        updateMenuCardState();
         console.error('Unable to load menu items', error);
+        menuList.innerHTML = '<div class="menu-message">Unable to load menu items right now.</div>';
     }
 }
 
@@ -208,13 +157,17 @@ function handleMenuClick(event) {
 }
 
 function handleSummaryClick(event) {
-    const row = event.target.closest('.summary-row');
-    if (!row) {
+    const action = event.target.dataset.action;
+    if (!action) {
         return;
     }
 
-    const action = event.target.dataset.action;
-    const itemId = Number(row.dataset.id);
+    const block = event.target.closest('.summary-item-block');
+    if (!block) {
+        return;
+    }
+
+    const itemId = Number(block.dataset.id);
     const item = orderItems.find((entry) => entry.menu_item_id === itemId);
     if (!item) {
         return;
@@ -241,7 +194,7 @@ function addItem(item, delta) {
 
     const unitPrice = Number(item.unit_price ?? item.price ?? 0);
     const name = item.name ?? item.menu_item_name ?? '';
-    const category = item.category ?? item.category ?? '';
+    const category = item.category ?? '';
 
     const existing = orderItems.find((row) => row.menu_item_id === menuItemId);
     if (existing) {
@@ -256,6 +209,7 @@ function addItem(item, delta) {
             unit_price: unitPrice,
             quantity: 1,
             category,
+            instructions: '', // per-item instructions
         });
     }
 
@@ -306,19 +260,35 @@ function renderOrderSummary() {
             <span>Adjust</span>
         </div>
         ${orderItems
-            .map((item) => `
-            <div class="summary-row" data-id="${item.menu_item_id}">
-                <span class="summary-name">${item.name}</span>
-                <span>${item.quantity}</span>
-                <span>${formatCurrency(item.unit_price)}</span>
-                <span>${formatCurrency(item.unit_price * item.quantity)}</span>
-                <span class="summary-controls">
-                    <button type="button" data-action="decrease">-</button>
-                    <button type="button" data-action="increase">+</button>
-                </span>
+            .map((item, index) => `
+            <div class="summary-item-block" data-id="${item.menu_item_id}">
+                <div class="summary-row">
+                    <span class="summary-name">${item.name}</span>
+                    <span>${item.quantity}</span>
+                    <span>${formatCurrency(item.unit_price)}</span>
+                    <span>${formatCurrency(item.unit_price * item.quantity)}</span>
+                    <span class="summary-controls">
+                        <button type="button" data-action="decrease">-</button>
+                        <button type="button" data-action="increase">+</button>
+                    </span>
+                </div>
+                <div class="summary-instructions">
+                    <input type="text" class="item-instructions-input" data-item-id="${item.menu_item_id}" placeholder="Item instructions (e.g. No pepper)" value="${item.instructions || ''}" />
+                </div>
             </div>`)
             .join('')}
     `;
+
+    // Attach instructions change handlers
+    document.querySelectorAll('.item-instructions-input').forEach((input) => {
+        input.addEventListener('input', (e) => {
+            const itemId = Number(e.target.dataset.itemId);
+            const entry = orderItems.find((row) => row.menu_item_id === itemId);
+            if (entry) {
+                entry.instructions = e.target.value;
+            }
+        });
+    });
 }
 
 function updateTotals() {
@@ -341,7 +311,7 @@ function showConfirmation() {
     const paymentMethod = (paymentMethodSelect?.value || 'pending').toLowerCase();
     const rows = orderItems
         .map(
-            (item) => `<div class="confirmation-row"><span>${item.name} x${item.quantity}</span><strong>${formatCurrency(item.unit_price * item.quantity)}</strong></div>`
+            (item) => `<div class="confirmation-row"><span>${item.name} x${item.quantity}${item.instructions ? `<br/><small style="color:var(--muted);font-size:0.85rem;">Note: ${item.instructions}</small>` : ''}</span><strong>${formatCurrency(item.unit_price * item.quantity)}</strong></div>`
         )
         .join('');
 
@@ -434,7 +404,7 @@ async function submitOrder() {
         items: orderItems.map((item) => ({
             menu_item_id: item.menu_item_id,
             quantity: item.quantity,
-            unit_price: item.unit_price,
+            instructions: item.instructions || null,
         })),
     };
 
