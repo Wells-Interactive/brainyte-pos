@@ -1,6 +1,11 @@
 # Ignore only sensitive configuration
 includes/db.php
 includes/config.php
+includes/classes
+
+# APIs'
+API/v1
+
 
 # Documentation
 docs/
@@ -14,8 +19,6 @@ uploads/
 
 # Environment
 .env
-
-
 
 
 # Dependencies

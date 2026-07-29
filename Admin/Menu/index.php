@@ -89,6 +89,35 @@ $csrf_token = generate_csrf_token();
 
             <div id="adminSalesTable" class="table-card"></div>
 
+            <!-- Inventory Alerts -->
+            <div class="card">
+                <h3>Inventory Alerts</h3>
+                <div id="inventoryAlerts" class="message">Loading inventory alerts...</div>
+                <div class="inventory-summary" id="inventorySummary"></div>
+            </div>
+
+            <div class="card">
+                <h3>Stock Adjustment</h3>
+                <form id="stockAdjustForm" class="form-grid">
+                    <input type="hidden" name="csrf_token" value="<?= $csrf_token ?>" />
+                    <label for="stockItemSelect">Menu Item</label>
+                    <select id="stockItemSelect" name="menu_item_id" required>
+                        <option value="">Select item</option>
+                    </select>
+                    <label for="stockQuantity">Quantity (+ for stock in, - for stock out)</label>
+                    <input id="stockQuantity" name="quantity" type="number" step="1" required placeholder="e.g. 50 or -5" />
+                    <label for="stockReason">Reason (required)</label>
+                    <textarea id="stockReason" name="reason" rows="2" required placeholder="e.g. Restocked from supplier, Spoilage, Damaged goods"></textarea>
+                    <button type="submit" class="primary-button">Adjust Stock</button>
+                </form>
+                <div id="stockAdjustMessage" class="message"></div>
+            </div>
+
+            <div class="card">
+                <h3>Inventory Audit Trail (Recent)</h3>
+                <div id="inventoryAuditTrail" class="table-card">Loading...</div>
+            </div>
+
             <!-- Direct Printing Toggle (Admin/Owner Only) -->
             <div class="card">
                 <h3>Print Settings</h3>
@@ -166,12 +195,13 @@ $csrf_token = generate_csrf_token();
     </main>
 
     <footer class="footer">
-        <a href="https://linktr.ee/wellsinteractive" target="_blank" rel="noopener noreferrer" class="footer-link">
+        <a href="#" class="footer-link" id="brainyteFooterLink">
             <span class="brainyte-icon" aria-hidden="true">B</span>
             <span>Powered by Brainyte</span>
         </a>
     </footer>
 
     <script type="module" src="../../assets/js/main.js"></script>
+    <script src="../../assets/js/brainyte-popup.js"></script>
 </body>
 </html>

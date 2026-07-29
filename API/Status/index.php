@@ -3,6 +3,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../includes/db.php';
 require_once __DIR__ . '/../../includes/utils.php';
 
+use App\Inventory;
+
 /**
  * Status API - For tables, order items, and statistics.
  * 
@@ -242,6 +244,16 @@ if ($method === 'POST') {
 
                 // Create notification
                 create_notification($pdo, 'waiter', null, "Table {$tableId} Paid", "Table {$tableId} has been marked as paid via {$paymentMethod}", 'payment', 'order', $orderId);
+
+                // Auto-deduct inventory stock
+                if (isset($orderId) && $orderId > 0) {
+                    try {
+                        $inv = new Inventory($pdo);
+                        $inv->autoDeductFromOrder($orderId, $authUser['id']);
+                    } catch (\Throwable $e) {
+                        error_log("Inventory auto-deduction failed for order {$orderId}: " . $e->getMessage());
+                    }
+                }
             }
 
             // Free table only if no other active orders remain

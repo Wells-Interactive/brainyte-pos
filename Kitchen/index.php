@@ -47,10 +47,11 @@ if ($role !== 'kitchen') {
 </section>
 </main>
 <footer class="footer">
-<a href="https://linktr.ee/wellsinteractive" target="_blank" rel="noopener noreferrer" class="footer-link">
+<a href="#" class="footer-link" id="brainyteFooterLink">
 <span class="brainyte-icon" aria-hidden="true">B</span><span>Powered by Brainyte</span>
 </a>
 </footer>
 <script type="module" src="/assets/js/kitchen.js?v=2.0"></script>
+<script src="/assets/js/brainyte-popup.js"></script>
 </body>
 </html>

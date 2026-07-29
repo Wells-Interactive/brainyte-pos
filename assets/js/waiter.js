@@ -99,11 +99,12 @@ async function fetchMenu(category = 'water') {
             .map((item) => {
                 const existing = orderItems.find((entry) => entry.menu_item_id === item.id);
                 const quantity = existing ? existing.quantity : 0;
+                const isUnavailable = item.available === 0;
                 return `
-                <article class="menu-card ${quantity > 0 ? 'selected' : ''}" data-id="${item.id}" data-name="${item.name}" data-price="${item.price}" data-category="${item.category}">
+                <article class="menu-card ${quantity > 0 ? 'selected' : ''} ${isUnavailable ? 'unavailable' : ''}" data-id="${item.id}" data-name="${item.name}" data-price="${item.price}" data-category="${item.category}" data-available="${item.available}">
                     <div class="menu-card-header">
                         <div>
-                            <h3>${item.name}</h3>
+                            <h3>${item.name} ${isUnavailable ? '<span style="color:var(--danger);font-size:0.8rem;">(Out of Stock)</span>' : ''}</h3>
                             <p>${item.description}</p>
                         </div>
                         <div class="item-meta">
@@ -113,10 +114,11 @@ async function fetchMenu(category = 'water') {
                     <div class="menu-card-footer">
                         <div class="quantity-display">Qty: <strong class="item-count">${quantity}</strong></div>
                         <div class="card-actions">
+                            ${isUnavailable ? '<span style="color:var(--danger);font-size:0.85rem;">Unavailable</span>' : `
                             <button type="button" class="control-button" data-action="decrease">-</button>
-                            <button type="button" class="control-button" data-action="increase">+</button>
+                            <button type="button" class="control-button" data-action="increase">+</button>`}
                         </div>
-                        <div class="card-click-tip">Tap card to add</div>
+                        <div class="card-click-tip">${isUnavailable ? 'Out of stock' : 'Tap card to add'}</div>
                 </article>`;
             })
             .join('');
@@ -134,6 +136,12 @@ function handleMenuClick(event) {
         return;
     }
 
+    // Check if item is unavailable
+    const isAvailable = parseInt(card.dataset.available || '1') === 1;
+    if (!isAvailable) {
+        return;
+    }
+
     const actionButton = event.target.closest('button[data-action]');
     const action = actionButton ? actionButton.dataset.action : undefined;
     const item = {
@@ -141,6 +149,7 @@ function handleMenuClick(event) {
         name: card.dataset.name,
         price: Number(card.dataset.price),
         category: card.dataset.category,
+        available: Number(card.dataset.available),
     };
 
     if (action === 'increase') {

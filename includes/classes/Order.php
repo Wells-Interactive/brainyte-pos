@@ -5,6 +5,7 @@ namespace App;
 
 use PDO;
 use InvalidArgumentException;
+use App\Inventory;
 
 /**
  * Order Management
@@ -375,6 +376,14 @@ class Order
             // If completed, free the table (with active order check)
             if ($newStatus === 'completed') {
                 $this->freeTable($orderId);
+
+                // Auto-deduct inventory stock
+                try {
+                    $inventory = new Inventory($this->pdo);
+                    $inventory->autoDeductFromOrder($orderId, $changedByUserId);
+                } catch (\Throwable $e) {
+                    error_log("Inventory auto-deduction failed for order {$orderId}: " . $e->getMessage());
+                }
             }
 
             $this->pdo->commit();
@@ -431,6 +440,15 @@ class Order
 
             // Free the table with active order check
             $this->freeTable($orderId);
+
+            // Auto-deduct inventory stock
+            try {
+                $inventory = new Inventory($this->pdo);
+                $inventory->autoDeductFromOrder($orderId, $changedByUserId);
+            } catch (\Throwable $e) {
+                // Log but don't fail the payment - inventory is auxiliary
+                error_log("Inventory auto-deduction failed for order {$orderId}: " . $e->getMessage());
+            }
 
             // Notify waiter
             $notificationService = new Notification($this->pdo);
@@ -547,6 +565,14 @@ class Order
                     ->execute([':status' => 'completed', ':updated_at' => $now, ':order_id' => $orderId]);
                 $this->logHistory($orderId, null, 'served', 'completed', $changedByUserId);
                 $this->freeTable($orderId);
+
+                // Auto-deduct inventory stock
+                try {
+                    $inventory = new Inventory($this->pdo);
+                    $inventory->autoDeductFromOrder($orderId, $changedByUserId);
+                } catch (\Throwable $e) {
+                    error_log("Inventory auto-deduction failed for order {$orderId}: " . $e->getMessage());
+                }
             }
         }
     }

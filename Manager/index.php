@@ -75,7 +75,39 @@ $csrf_token = generate_csrf_token();
                 <p class="message">Green = Available, Red = Occupied, Blue = Reserved</p>
                 <div id="adminLiveTables" class="table-grid"></div>
 
-            <!-- Settings Management (Manager/Supervisor) -->
+            <!-- Reports Section -->
+            <div class="card">
+                <h3>Reports</h3>
+                <div class="report-controls" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
+                    <select id="reportScope" style="flex:1;min-width:120px;">
+                        <option value="day">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                        <option value="year">This Year</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                    <input type="date" id="reportStartDate" style="flex:1;min-width:120px;" />
+                    <input type="date" id="reportEndDate" style="flex:1;min-width:120px;" />
+                    <select id="reportType" style="flex:1;min-width:120px;">
+                        <option value="sales">Sales Report</option>
+                        <option value="products">Products Report</option>
+                        <option value="staff">Staff Report</option>
+                        <option value="payments">Payments Report</option>
+                        <option value="operations">Operations Report</option>
+                    </select>
+                    <button type="button" id="generateReportBtn" class="primary-button">Generate Report</button>
+                </div>
+                <div id="reportResults" class="table-card" style="overflow-x:auto;">
+                    <p class="message">Select report type and date range, then click "Generate Report".</p>
+                </div>
+
+            <!-- Inventory Alerts -->
+            <div class="card">
+                <h3>Inventory Alerts</h3>
+                <div id="inventoryAlerts" class="message">Loading inventory alerts...</div>
+                <div class="inventory-summary" id="inventorySummary"></div>
+
+            <!-- Settings Management -->
             <div class="card">
                 <h3>Restaurant Settings</h3>
                 <div class="settings-grid">
@@ -110,12 +142,13 @@ $csrf_token = generate_csrf_token();
     </main>
 
     <footer class="footer">
-        <a href="https://linktr.ee/wellsinteractive" target="_blank" rel="noopener noreferrer" class="footer-link">
+        <a href="#" class="footer-link" id="brainyteFooterLink">
             <span class="brainyte-icon" aria-hidden="true">B</span>
             <span>Powered by Brainyte</span>
         </a>
     </footer>
 
     <script type="module" src="/assets/js/main.js?v=2.0"></script>
+    <script src="/assets/js/brainyte-popup.js"></script>
 </body>
 </html>

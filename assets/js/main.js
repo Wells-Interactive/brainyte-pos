@@ -149,6 +149,12 @@ function getCsrfToken() {
     return sessionStorage.getItem('csrf_token') || '';
 }
 
+function fmt(val) {
+    return val != null
+        ? new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(val)
+        : 'Ni0.00';
+}
+
 async function loadAdminMenuOptions() {
     if (!adminItemCategory || !adminItemSelect) return;
 
@@ -180,10 +186,6 @@ async function loadAdminStats() {
         if (!response.ok) {
             throw new Error(data.error || 'Unable to load admin statistics');
         }
-
-        const fmt = (val) => val != null
-            ? new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(val)
-            : '₦0.00';
 
         if (adminTotalRevenue) adminTotalRevenue.textContent = fmt(data.total_revenue);
         if (adminCompletedOrders) adminCompletedOrders.textContent = data.completed_orders ?? 0;
@@ -325,13 +327,146 @@ async function handleAdminAddUser(event) {
 }
 
 // ============================================================
+// INVENTORY MANAGEMENT
+// ============================================================
+const inventoryAlerts = document.getElementById('inventoryAlerts');
+const inventorySummary = document.getElementById('inventorySummary');
+const inventoryAuditTrail = document.getElementById('inventoryAuditTrail');
+const stockAdjustForm = document.getElementById('stockAdjustForm');
+const stockItemSelect = document.getElementById('stockItemSelect');
+const stockAdjustMessage = document.getElementById('stockAdjustMessage');
+
+async function loadInventoryAlerts() {
+    if (!inventoryAlerts && !inventorySummary) return;
+
+    try {
+        const response = await fetch('/API/v1/inventory/alerts.php');
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Failed to load inventory');
+
+        const data = result.data || result;
+        const alerts = data.alerts || {};
+        const stats = data.statistics || {};
+        const lowStock = Array.isArray(alerts.low_stock) ? alerts.low_stock : [];
+        const outOfStock = Array.isArray(alerts.out_of_stock) ? alerts.out_of_stock : [];
+
+        let alertHtml = '';
+        if (outOfStock.length > 0) {
+            alertHtml += `<p style="color:var(--danger);font-weight:700;">Red Out of Stock (${outOfStock.length}):</p><ul>${outOfStock.map(item => `<li>${sanitizeHtml(item.menu_item_name)} (${sanitizeHtml(item.category)})</li>`).join('')}</ul>`;
+        }
+        if (lowStock.length > 0) {
+            alertHtml += `<p style="color:#cc7700;font-weight:700;">Yellow Low Stock (${lowStock.length}):</p><ul>${lowStock.map(item => `<li>${sanitizeHtml(item.menu_item_name)} - Stock: ${item.current_stock} / Min: ${item.min_stock_level}</li>`).join('')}</ul>`;
+        }
+        if (!alertHtml) {
+            alertHtml = '<p style="color:var(--accent-dark);font-weight:600;">Check All items are well-stocked.</p>';
+        }
+        if (inventoryAlerts) inventoryAlerts.innerHTML = alertHtml;
+
+        if (inventorySummary && stats) {
+            inventorySummary.innerHTML = `
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.75rem;margin-top:0.5rem;">
+                    <div style="background:var(--surface-alt);padding:0.75rem;border-radius:0.75rem;"><strong>${stats.total_items || 0}</strong><br/><span style="font-size:0.85rem;">Total Items</span></div>
+                    <div style="background:var(--surface-alt);padding:0.75rem;border-radius:0.75rem;"><strong>${stats.low_stock_count || 0}</strong><br/><span style="font-size:0.85rem;">Low Stock</span></div>
+                    <div style="background:var(--surface-alt);padding:0.75rem;border-radius:0.75rem;"><strong>${stats.out_of_stock_count || 0}</strong><br/><span style="font-size:0.85rem;">Out of Stock</span></div>
+                    <div style="background:var(--surface-alt);padding:0.75rem;border-radius:0.75rem;"><strong>${fmt(stats.total_stock_value || 0)}</strong><br/><span style="font-size:0.85rem;">Stock Value</span></div>`;
+        }
+    } catch (error) {
+        if (inventoryAlerts) inventoryAlerts.innerHTML = '<p class="message">Unable to load inventory alerts.</p>';
+        console.error('Inventory alerts error:', error);
+    }
+}
+
+async function loadStockItemOptions() {
+    if (!stockItemSelect) return;
+
+    try {
+        const response = await fetch('/API/v1/inventory/index.php');
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Failed to load items');
+        const data = result.data || result;
+        const items = Array.isArray(data.items) ? data.items : [];
+        stockItemSelect.innerHTML = '<option value="">Select item</option>' +
+            items.map(item => `<option value="${item.menu_item_id}">${sanitizeHtml(item.menu_item_name)} (Stock: ${item.current_stock}, Min: ${item.min_stock_level})</option>`).join('');
+    } catch (error) {
+        stockItemSelect.innerHTML = '<option value="">Unable to load items</option>';
+        console.error('Stock item options error:', error);
+    }
+}
+
+async function loadInventoryAuditTrail() {
+    if (!inventoryAuditTrail) return;
+
+    try {
+        const response = await fetch('/API/v1/inventory/index.php');
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Failed to load audit trail');
+        inventoryAuditTrail.innerHTML = '<p class="message">Use stock adjustment form to create movements. The audit trail records all stock changes with timestamps, users, and reasons.</p>';
+    } catch (error) {
+        inventoryAuditTrail.innerHTML = '<p class="message">Unable to load audit trail.</p>';
+    }
+}
+
+async function handleStockAdjust(event) {
+    event.preventDefault();
+    if (!stockAdjustForm || !stockAdjustMessage) return;
+
+    const formData = new FormData(stockAdjustForm);
+    const menuItemId = Number(formData.get('menu_item_id'));
+    const quantity = Number(formData.get('quantity'));
+    const reason = formData.get('reason')?.trim();
+
+    if (!menuItemId) {
+        stockAdjustMessage.textContent = 'Please select a menu item.';
+        return;
+    }
+    if (quantity === 0) {
+        stockAdjustMessage.textContent = 'Quantity must be non-zero.';
+        return;
+    }
+    if (!reason) {
+        stockAdjustMessage.textContent = 'Reason is required.';
+        return;
+    }
+
+    stockAdjustMessage.textContent = 'Adjusting stock...';
+
+    try {
+        const response = await fetch('/API/v1/inventory/index.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                menu_item_id: menuItemId,
+                quantity: quantity,
+                reason: reason,
+                csrf_token: getCsrfToken(),
+            }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Adjustment failed');
+
+        stockAdjustMessage.textContent = 'Stock adjusted: ' + data.data.previous_qty + ' -> ' + data.data.new_qty + ' (' + data.data.type + ')';
+        stockAdjustForm.reset();
+        await loadInventoryAlerts();
+        await loadStockItemOptions();
+        await loadAdminStats();
+    } catch (error) {
+        stockAdjustMessage.textContent = 'Error: ' + error.message;
+        console.error('Stock adjust error:', error);
+    }
+}
+
+// ============================================================
 // INIT - Admin Dashboard
 // ============================================================
 if (adminDashboard) {
     loadSettings();
     loadAdminMenuOptions();
     loadAdminStats();
+    loadInventoryAlerts();
+    loadStockItemOptions();
+    loadInventoryAuditTrail();
     setInterval(loadAdminStats, 30000);
+    setInterval(loadInventoryAlerts, 60000);
 
     if (adminAddMenuItem) {
         adminAddMenuItem.addEventListener('submit', handleAdminAddItem);
@@ -342,6 +477,9 @@ if (adminDashboard) {
     if (adminAddUser) {
         adminAddUser.addEventListener('submit', handleAdminAddUser);
     }
+    if (stockAdjustForm) {
+        stockAdjustForm.addEventListener('submit', handleStockAdjust);
+    }
 }
 
 // ============================================================
@@ -351,7 +489,123 @@ const managerDashboard = document.getElementById('managerDashboard');
 if (managerDashboard) {
     loadSettings();
     loadAdminStats();
+    loadInventoryAlerts();
     setInterval(loadAdminStats, 30000);
+    setInterval(loadInventoryAlerts, 60000);
+}
+
+// ============================================================
+// REPORTS
+// ============================================================
+const generateReportBtn = document.getElementById('generateReportBtn');
+const reportResults = document.getElementById('reportResults');
+const reportScope = document.getElementById('reportScope');
+const reportType = document.getElementById('reportType');
+const reportStartDate = document.getElementById('reportStartDate');
+const reportEndDate = document.getElementById('reportEndDate');
+
+if (generateReportBtn) {
+    generateReportBtn.addEventListener('click', async () => {
+        if (!reportResults) return;
+
+        const scope = reportScope ? reportScope.value : 'day';
+        const type = reportType ? reportType.value : 'sales';
+        let startDate = reportStartDate ? reportStartDate.value : '';
+        let endDate = reportEndDate ? reportEndDate.value : '';
+
+        reportResults.innerHTML = '<p class="message">Loading report...</p>';
+
+        try {
+            let url = '/API/v1/reports/index.php?scope=' + encodeURIComponent(scope) + '&report=' + encodeURIComponent(type);
+            if (scope === 'custom' && startDate && endDate) {
+                url += '&start_date=' + encodeURIComponent(startDate) + '&end_date=' + encodeURIComponent(endDate);
+            }
+
+            const response = await fetch(url);
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Failed to load report');
+
+            const data = result.data || result;
+            renderReport(type, data);
+        } catch (error) {
+            reportResults.innerHTML = '<p class="message" style="color:var(--danger);">Error: ' + error.message + '</p>';
+        }
+    });
+}
+
+function renderReport(type, data) {
+    if (!reportResults) return;
+
+    const fromDate = data.from_date ? new Date(data.from_date).toLocaleDateString() : 'N/A';
+    const toDate = data.to_date ? new Date(data.to_date).toLocaleDateString() : 'N/A';
+
+    let html = '<div style="margin-bottom:1rem;"><strong>Report:</strong> ' + type.toUpperCase() + ' | <strong>Period:</strong> ' + fromDate + ' - ' + toDate + '</div><hr style="border-color:var(--border);margin:0.75rem 0;" />';
+
+    switch (type) {
+        case 'sales':
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;">';
+            html += '<div class="card" style="padding:0.75rem;"><strong>' + fmt(data.gross_sales || 0) + '</strong><br/><span style="font-size:0.85rem;">Gross Sales</span></div>';
+            html += '<div class="card" style="padding:0.75rem;"><strong>' + fmt(data.net_sales || 0) + '</strong><br/><span style="font-size:0.85rem;">Net Sales</span></div>';
+            html += '<div class="card" style="padding:0.75rem;"><strong>' + fmt(data.vat_collected || 0) + '</strong><br/><span style="font-size:0.85rem;">VAT (' + (data.vat_rate || 0) + '%)</span></div>';
+            html += '<div class="card" style="padding:0.75rem;"><strong>' + (data.order_count || 0) + '</strong><br/><span style="font-size:0.85rem;">Orders</span></div>';
+            html += '<div class="card" style="padding:0.75rem;"><strong>' + (data.items_sold || 0) + '</strong><br/><span style="font-size:0.85rem;">Items Sold</span></div>';
+            html += '<div class="card" style="padding:0.75rem;"><strong>' + fmt(data.average_order_value || 0) + '</strong><br/><span style="font-size:0.85rem;">Avg Order Value</span></div>';
+            html += '</div>';
+            break;
+
+        case 'products':
+            html += '<h4>Top Items</h4>';
+            if (data.top_items && data.top_items.length > 0) {
+                html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr style="background:var(--surface-alt);"><th style="padding:0.5rem;">Item</th><th style="padding:0.5rem;">Category</th><th style="padding:0.5rem;">Qty Sold</th><th style="padding:0.5rem;">Revenue</th></tr></thead><tbody>';
+                data.top_items.forEach(function(item) {
+                    html += '<tr><td style="padding:0.5rem;border-bottom:1px solid var(--border);">' + sanitizeHtml(item.item_name) + '</td><td style="padding:0.5rem;border-bottom:1px solid var(--border);">' + sanitizeHtml(item.category) + '</td><td style="padding:0.5rem;border-bottom:1px solid var(--border);">' + item.quantity_sold + '</td><td style="padding:0.5rem;border-bottom:1px solid var(--border);">' + fmt(item.total_revenue) + '</td></tr>';
+                });
+                html += '</tbody></table></div>';
+            } else {
+                html += '<p class="message">No product sales data.</p>';
+            }
+            break;
+
+        case 'staff':
+            html += '<h4>Sales by Waiter</h4>';
+            if (data.waiter_sales && data.waiter_sales.length > 0) {
+                html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr style="background:var(--surface-alt);"><th style="padding:0.5rem;">Waiter</th><th style="padding:0.5rem;">Orders</th><th style="padding:0.5rem;">Items</th><th style="padding:0.5rem;">Sales</th></tr></thead><tbody>';
+                data.waiter_sales.forEach(function(w) {
+                    html += '<tr><td style="padding:0.5rem;border-bottom:1px solid var(--border);">' + sanitizeHtml(w.waiter_name) + '</td><td style="padding:0.5rem;border-bottom:1px solid var(--border);">' + w.orders_count + '</td><td style="padding:0.5rem;border-bottom:1px solid var(--border);">' + w.items_sold + '</td><td style="padding:0.5rem;border-bottom:1px solid var(--border);">' + fmt(w.total_sales) + '</td></tr>';
+                });
+                html += '</tbody></table></div>';
+            } else {
+                html += '<p class="message">No staff sales data.</p>';
+            }
+            break;
+
+        case 'payments':
+            html += '<h4>Payment Methods</h4>';
+            if (data.payment_methods && data.payment_methods.length > 0) {
+                html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr style="background:var(--surface-alt);"><th style="padding:0.5rem;">Method</th><th style="padding:0.5rem;">Orders</th><th style="padding:0.5rem;">Total</th></tr></thead><tbody>';
+                data.payment_methods.forEach(function(m) {
+                    html += '<tr><td style="padding:0.5rem;border-bottom:1px solid var(--border);">' + sanitizeHtml(m.payment_method) + '</td><td style="padding:0.5rem;border-bottom:1px solid var(--border);">' + m.order_count + '</td><td style="padding:0.5rem;border-bottom:1px solid var(--border);">' + fmt(m.total_amount) + '</td></tr>';
+                });
+                html += '</tbody></table></div>';
+            } else {
+                html += '<p class="message">No payment data.</p>';
+            }
+            break;
+
+        case 'operations':
+            html += '<h4>Order Statuses</h4>';
+            if (data.order_statuses && data.order_statuses.length > 0) {
+                html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr style="background:var(--surface-alt);"><th style="padding:0.5rem;">Status</th><th style="padding:0.5rem;">Count</th></tr></thead><tbody>';
+                data.order_statuses.forEach(function(s) {
+                    html += '<tr><td style="padding:0.5rem;border-bottom:1px solid var(--border);">' + sanitizeHtml(s.status) + '</td><td style="padding:0.5rem;border-bottom:1px solid var(--border);">' + s.order_count + '</td></tr>';
+                });
+                html += '</tbody></table></div>';
+            }
+            html += '<p style="margin-top:0.75rem;"><strong>Cancelled/Voided Orders:</strong> ' + (data.cancelled_orders || 0) + ' (' + fmt(data.cancelled_value || 0) + ')</p>';
+            break;
+    }
+
+    reportResults.innerHTML = html;
 }
 
 // ============================================================

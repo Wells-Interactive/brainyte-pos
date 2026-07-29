@@ -93,12 +93,13 @@ if ($role !== 'waiter') {
     </div>
 
     <footer class="footer">
-        <a href="https://linktr.ee/wellsinteractive" target="_blank" rel="noopener noreferrer" class="footer-link">
+        <a href="#" class="footer-link" id="brainyteFooterLink">
             <span class="brainyte-icon" aria-hidden="true">B</span>
             <span>Powered by Brainyte</span>
         </a>
     </footer>
 
     <script type="module" src="/assets/js/waiter.js"></script>
+    <script src="/assets/js/brainyte-popup.js"></script>
 </body>
 </html>
