@@ -12,10 +12,27 @@ declare(strict_types=1);
  *   - Check if setup is complete
  */
 
-require_once __DIR__ . '/../../includes/db.php';
 require_once __DIR__ . '/../../includes/utils.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
+
+// If the db config file is missing, the system cannot be set up yet.
+if (!db_config_exists()) {
+    json_response([
+        'success' => false,
+        'data' => [
+            'setup_complete' => false,
+            'setup_required' => true,
+            'db_configured' => false,
+            'redirect' => '/Setup/index.php',
+        ],
+        'error' => 'Database configuration file not found. Please complete the Database Setup step first.',
+        'meta' => null,
+    ], 503);
+}
+
+require_once __DIR__ . '/../../includes/db.php';
+
 $pdo = get_db();
 
 // ============================================================
@@ -29,6 +46,7 @@ if ($method === 'GET') {
         'data' => [
             'setup_complete' => $setupComplete,
             'setup_required' => !$setupComplete,
+            'db_configured' => true,
         ],
         'error' => null,
         'meta' => null,

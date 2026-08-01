@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/utils.php';
+require_setup_or_redirect();
 session_start();
 $role = $_SESSION['role'] ?? $_SESSION['user']['role'] ?? null;
 $username = $_SESSION['username'] ?? $_SESSION['user']['name'] ?? '';

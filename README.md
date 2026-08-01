@@ -41,9 +41,9 @@ Unlike traditional POS systems filled with unnecessary modules, Brainyte Restaur
 |:--------:|:---:|:------------:|:---------:|
 | <img src="assets/images/menu_screen.png" width="220"> | <img src="assets/images/quantity_add.png" width="220"> | <img src="assets/images/quantity_add_2.png" width="220"> | <img src="assets/images/water_screen.png" width="220"> |
 
-| Admin Add | Admin Dash | Admin Item | Admin Price |
+| Setup | Admin Dash | Admin Item | Admin Price |
 |:--------:|:---:|:------------:|:---------:|
-<img src="assets/images/add_item.png" width="220"> | <img src="assets/images/admin_menu.png" width="220"> | <img src="assets/images/add_item.png" width="220"> | <img src="assets/images/update price.png" width="220"> |
+<img src="assets/images/setup.png" width="220"> | <img src="assets/images/admin_menu.png" width="220"> | <img src="assets/images/add_item.png" width="220"> | <img src="assets/images/update price.png" width="220"> |
 
 
 </div>
@@ -161,8 +161,8 @@ VAT Rate
 | Order Summary | ✅ Complete |
 | Confirmation Dialog | ✅ Complete |
 | Customer Instructions | ✅ Complete |
-| Kitchen Dashboard | ✅ Working |
-| Bar Dashboard | ✅ Working |
+| Kitchen Dashboard | ✅ Complete |
+| Bar Dashboard | ✅ Complete |
 | Branding | ✅ Complete |
 | Responsive Layout | ✅ Complete |
 | API | ✅ Complete |
@@ -263,9 +263,9 @@ Future
 ---
 
 
-# ❤️ Branding
+# Branding
 
-Powered by
+Powered by 
 
 **Brainyte**
 
@@ -276,9 +276,7 @@ https://linktr.ee/wellsinteractive
 # 📌 Version
 
 ```
-Brainyte Restaurant POS
-
-Current Version 2.1 Stable
+Brainyte Restaurant POS - Current Version 2.1 Stable
 ```
 
 ---

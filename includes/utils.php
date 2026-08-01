@@ -13,6 +13,12 @@ function init_timezone(): void
     }
     $initialized = true;
 
+    // get_db() may not be defined yet when includes/db.php is missing.
+    if (!function_exists('get_db')) {
+        date_default_timezone_set('Africa/Lagos');
+        return;
+    }
+
     try {
         $pdo = get_db();
         $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'timezone' LIMIT 1");
@@ -23,6 +29,58 @@ function init_timezone(): void
     } catch (Throwable $e) {
         date_default_timezone_set('Africa/Lagos');
     }
+}
+
+/**
+ * Check whether the database configuration file exists.
+ */
+function db_config_exists(): bool
+{
+    return file_exists(__DIR__ . '/db.php');
+}
+
+/**
+ * Determine whether setup is still required.
+ *
+ * Returns true when:
+ *   - includes/db.php is missing, OR
+ *   - the database cannot be reached, OR
+ *   - no admin/owner user exists yet.
+ */
+function setup_required(): bool
+{
+    if (!db_config_exists()) {
+        return true;
+    }
+
+    try {
+        require_once __DIR__ . '/db.php';
+        $pdo = get_db();
+        return !is_setup_complete($pdo);
+    } catch (Throwable $e) {
+        return true;
+    }
+}
+
+/**
+ * Redirect non-API requests to the Setup wizard when setup is required.
+ * API requests receive a JSON 503 response.
+ */
+function require_setup_or_redirect(): void
+{
+    if (!setup_required()) {
+        return;
+    }
+
+    $isApi = !empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false;
+
+    if ($isApi) {
+        http_response_code(503);
+        json_response(['error' => 'System not set up. Please complete setup first.'], 503);
+    }
+
+    header('Location: /Setup/index.php');
+    exit;
 }
 
 // Initialize timezone on every include

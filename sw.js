@@ -1,4 +1,4 @@
-const cacheName = 'restaurant-pos-v1';
+const cacheName = 'brainyte-pos-v2';
 const assets = [
   '/index.php',
   '/assets/css/style.css',

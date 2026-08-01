@@ -3,6 +3,16 @@ declare(strict_types=1);
 require_once __DIR__ . '/includes/utils.php';
 session_start();
 
+// ============================================================
+// SETUP GATE - Backend only displays when setup is complete.
+// If db.php is missing, the database cannot be reached, or no
+// admin/owner user exists, redirect to the Setup wizard.
+// ============================================================
+if (setup_required()) {
+    header('Location: /Setup/index.php');
+    exit;
+}
+
 // Dynamic settings - try to load from database
 $restaurantName = 'Restaurant POS';
 $footerText = 'Powered by Brainyte';
