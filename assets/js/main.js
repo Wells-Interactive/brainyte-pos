@@ -109,6 +109,37 @@ if (loginForm) {
     });
 }
 
+let allowExitNavigation = false;
+
+document.addEventListener('click', (event) => {
+    const anchor = event.target.closest('a[href]');
+    if (!anchor) {
+        return;
+    }
+
+    const href = anchor.getAttribute('href');
+    if (!href || href.startsWith('javascript:') || href === '#') {
+        return;
+    }
+
+    allowExitNavigation = true;
+});
+
+document.addEventListener('submit', () => {
+    allowExitNavigation = true;
+});
+
+window.addEventListener('beforeunload', (event) => {
+    if (allowExitNavigation) {
+        return undefined;
+    }
+
+    const message = 'Are you sure you want to leave? Your current session may be lost.';
+    event.preventDefault();
+    event.returnValue = message;
+    return message;
+});
+
 // ============================================================
 // ADMIN DASHBOARD
 // ============================================================

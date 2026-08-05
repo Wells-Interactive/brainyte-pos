@@ -10,6 +10,7 @@ declare(strict_types=1);
  * This is the stable public API for the Flutter application.
  */
 
+require_once __DIR__ . '/../../../includes/bootstrap.php';
 require_once __DIR__ . '/../../../includes/db.php';
 require_once __DIR__ . '/../../../includes/utils.php';
 
@@ -20,17 +21,13 @@ use App\RateLimiter;
 header('Content-Type: application/json; charset=utf-8');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
-    exit;
+    json_response(['error' => 'Method not allowed'], 405);
 }
 
 try {
     $body = get_json_body();
 } catch (JsonException $e) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Invalid JSON body']);
-    exit;
+    json_response(['error' => 'Invalid JSON body'], 400);
 }
 
 $email = trim((string)($body['email'] ?? ''));
@@ -38,9 +35,7 @@ $password = (string)($body['password'] ?? '');
 $deviceName = trim((string)($body['device_name'] ?? ''));
 
 if ($email === '' || $password === '') {
-    http_response_code(400);
-    echo json_encode(['error' => 'Email and password are required']);
-    exit;
+    json_response(['error' => 'Email and password are required'], 400);
 }
 
 $pdo = get_db();
@@ -64,9 +59,7 @@ $user = $auth->login($email, $password);
 if (empty($user)) {
     $rateLimiter->recordLoginAttempt($clientIp . '|' . $email, false);
     $auditLog->log(null, 'login_failed', 'auth', null, "Failed v1 login attempt for {$email} from {$clientIp}");
-    http_response_code(401);
-    echo json_encode(['error' => 'Invalid credentials']);
-    exit;
+    json_response(['error' => 'Invalid credentials'], 401);
 }
 
 // Record successful login
@@ -76,7 +69,7 @@ $auditLog->login($user['id'], true, 'v1_api');
 // Generate token pair for Flutter
 $tokens = $auth->generateTokenPair($user['id'], $deviceName);
 
-echo json_encode([
+json_response([
     'success' => true,
     'data' => [
         'access_token' => $tokens['access_token'],

@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../includes/utils.php';
 
-$method = $_SERVER['REQUEST_METHOD'];
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 // If the db config file is missing, the system cannot be set up yet.
 if (!db_config_exists()) {
@@ -33,7 +33,23 @@ if (!db_config_exists()) {
 
 require_once __DIR__ . '/../../includes/db.php';
 
-$pdo = get_db();
+try {
+    $pdo = get_db();
+} catch (Throwable $e) {
+    // Database exists but connection failed - cannot complete setup yet.
+    json_response([
+        'success' => false,
+        'data' => [
+            'setup_complete' => false,
+            'setup_required' => true,
+            'db_configured' => true,
+            'db_connected' => false,
+            'redirect' => '/Setup/index.php',
+        ],
+        'error' => 'Database connection failed: ' . $e->getMessage(),
+        'meta' => null,
+    ], 503);
+}
 
 // ============================================================
 // GET - Check setup status

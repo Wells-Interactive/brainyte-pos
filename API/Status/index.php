@@ -1,7 +1,36 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/../../includes/db.php';
 require_once __DIR__ . '/../../includes/utils.php';
+
+if (!db_config_exists()) {
+    json_response([
+        'success' => false,
+        'data' => [
+            'setup_complete' => false,
+            'setup_required' => true,
+            'db_configured' => false,
+        ],
+        'error' => 'Database configuration is missing. Please complete the setup wizard.',
+        'meta' => null,
+    ], 503);
+}
+
+try {
+    require_once __DIR__ . '/../../includes/db.php';
+    $pdo = get_db();
+} catch (Throwable $exception) {
+    json_response([
+        'success' => false,
+        'data' => [
+            'setup_complete' => false,
+            'setup_required' => true,
+            'db_configured' => true,
+            'db_connected' => false,
+        ],
+        'error' => 'Database connection failed: ' . $exception->getMessage(),
+        'meta' => null,
+    ], 503);
+}
 
 use App\Inventory;
 

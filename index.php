@@ -95,13 +95,14 @@ $csrf_token = generate_csrf_token();
         <?php if (!$loggedIn): ?>
         <section class="card">
             <h2>Login</h2>
-<form id="loginForm" class="form-grid">
+            <form id="loginForm" class="form-grid">
                 <label for="email">Email</label>
                 <input type="email" id="email" name="email" autocomplete="username" required />
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" autocomplete="current-password" required />
                 <button type="submit">Sign In</button>
             </form>
+            <div id="loginMessage" class="message"></div>
         </section>
         <?php endif; ?>
 

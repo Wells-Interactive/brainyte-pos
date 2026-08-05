@@ -10,7 +10,7 @@ declare(strict_types=1);
  * wizard: Database Check → Create Admin → Complete
  */
 
-require_once __DIR__ . '/../includes/utils.php';
+require_once __DIR__ . '/../includes/bootstrap.php';
 
 // ============================================================
 // Handle Database Configuration POST (writes includes/db.php)
@@ -414,7 +414,9 @@ if ($dbConnected) {
         });
 
         // Auto-start database check when already connected
+        <?php if ($dbConnected): ?>
         checkDatabase();
+        <?php endif; ?>
     </script>
 </body>
 </html>

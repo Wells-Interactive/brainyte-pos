@@ -1,6 +1,25 @@
 <?php
 declare(strict_types=1);
 
+if (!defined('BRAINYTE_AUTOLOAD_REGISTERED')) {
+    define('BRAINYTE_AUTOLOAD_REGISTERED', true);
+    spl_autoload_register(function (string $class): void {
+        $prefix = 'App\\';
+        $baseDir = __DIR__ . '/classes/';
+
+        if (strncmp($prefix, $class, strlen($prefix)) !== 0) {
+            return;
+        }
+
+        $relativeClass = substr($class, strlen($prefix));
+        $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
+
+        if (file_exists($file)) {
+            require_once $file;
+        }
+    });
+}
+
 /**
  * Initialize timezone from database settings.
  * Falls back to 'Africa/Lagos' if settings table is not available.
@@ -72,7 +91,8 @@ function require_setup_or_redirect(): void
         return;
     }
 
-    $isApi = !empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false;
+    $requestUri = $_SERVER['REQUEST_URI'] ?? '';
+    $isApi = stripos($requestUri, '/api/') !== false || (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
 
     if ($isApi) {
         http_response_code(503);
@@ -282,20 +302,7 @@ function regenerate_session(): void
 // SESSION-BASED AUTH HELPERS
 // ============================================================
 
-function get_session_user_id(): int
-{
-    return (int)($_SESSION['user_id'] ?? $_SESSION['user']['id'] ?? 0);
-}
-
-function get_session_username(): string
-{
-    return trim((string)($_SESSION['username'] ?? $_SESSION['user']['name'] ?? ''));
-}
-
-function get_session_role(): string
-{
-    return trim((string)($_SESSION['role'] ?? $_SESSION['user']['role'] ?? ''));
-}
+// (Session helper functions with session_start are defined later to avoid duplicate declarations.)
 
 // ============================================================
 // BEARER TOKEN AUTH - ACCESS/REFRESH TOKEN PAIR (Flutter app)
@@ -539,6 +546,39 @@ function list_user_sessions(PDO $pdo, int $userId): array
 }
 
 /**
+ * Get the current session user ID.
+ */
+function get_session_user_id(): int
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+    return (int)($_SESSION['user_id'] ?? $_SESSION['user']['id'] ?? 0);
+}
+
+/**
+ * Get the currently authenticated session username.
+ */
+function get_session_username(): string
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+    return (string)($_SESSION['username'] ?? $_SESSION['user']['name'] ?? '');
+}
+
+/**
+ * Get the currently authenticated session role.
+ */
+function get_session_role(): string
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+    return (string)($_SESSION['role'] ?? $_SESSION['user']['role'] ?? '');
+}
+
+/**
  * Get authenticated user from either session or Bearer token.
  * Returns: ['id' => int, 'name' => string, 'email' => string, 'role' => string, 'auth_type' => 'session'|'bearer']
  */
@@ -605,6 +645,18 @@ function require_role(array $allowedRoles): array
         json_response(['error' => 'Forbidden: insufficient permissions'], 403);
     }
     return $user;
+}
+
+/**
+ * Revoke a refresh token by its value.
+ */
+function revoke_refresh_token(PDO $pdo, string $refreshToken): bool
+{
+    $stmt = $pdo->prepare(
+        'UPDATE auth_tokens SET revoked = 1 WHERE refresh_token = :refresh_token AND revoked = 0'
+    );
+    $stmt->execute([':refresh_token' => $refreshToken]);
+    return $stmt->rowCount() > 0;
 }
 
 // ============================================================

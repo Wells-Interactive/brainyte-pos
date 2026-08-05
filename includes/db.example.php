@@ -329,9 +329,17 @@ function ensure_database_schema(PDO $pdo): void
     ensure_column($pdo, 'menu_items', 'created_at', 'DATETIME NOT NULL');
     ensure_column($pdo, 'orders', 'special_instructions', 'TEXT DEFAULT NULL');
     ensure_column($pdo, 'orders', 'payment_method', "ENUM('cash', 'pos', 'transfer', 'pending') NOT NULL DEFAULT 'pending'");
+    ensure_column($pdo, 'orders', 'payment_status', "ENUM('unpaid', 'partial', 'paid', 'refunded', 'voided') NOT NULL DEFAULT 'unpaid'");
+    ensure_column($pdo, 'orders', 'total_amount', 'DECIMAL(9,2) NOT NULL DEFAULT 0.00');
+    ensure_column($pdo, 'orders', 'paid_amount', 'DECIMAL(9,2) NOT NULL DEFAULT 0.00');
     ensure_column($pdo, 'orders', 'updated_at', 'DATETIME NOT NULL');
     ensure_column($pdo, 'order_items', 'instructions', 'TEXT DEFAULT NULL');
     ensure_column($pdo, 'order_items', 'created_at', 'DATETIME NOT NULL');
+    ensure_column($pdo, 'order_items', 'updated_at', 'DATETIME DEFAULT NULL');
+    ensure_column($pdo, 'order_items', 'routed_to', "ENUM('kitchen', 'bar') NOT NULL");
+    ensure_column($pdo, 'auth_tokens', 'refresh_token', 'VARCHAR(64) DEFAULT NULL');
+    ensure_column($pdo, 'auth_tokens', 'device_name', 'VARCHAR(255) DEFAULT NULL');
+    ensure_column($pdo, 'auth_tokens', 'refresh_expires_at', 'DATETIME DEFAULT NULL');
     ensure_user_role_enum($pdo);
     ensure_table_status_enum($pdo);
     ensure_menu_category_enum($pdo);
