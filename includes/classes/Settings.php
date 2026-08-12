@@ -20,6 +20,7 @@ class Settings
     /** Allowed setting keys for validation */
     private const ALLOWED_KEYS = [
         'direct_printing',
+        'home_delivery_enabled',
         'restaurant_name',
         'logo_url',
         'vat_rate',
@@ -63,6 +64,7 @@ class Settings
             'printer_type' => 'thermal',
             'footer_text' => 'Powered by Brainyte',
             'direct_printing' => '0',
+            'home_delivery_enabled' => '0',
         ];
 
         foreach ($defaults as $key => $value) {
@@ -138,6 +140,7 @@ class Settings
     {
         switch ($key) {
             case 'direct_printing':
+            case 'home_delivery_enabled':
                 return in_array($value, ['0', '1'], true) ? null : 'Must be 0 or 1';
             case 'vat_rate':
                 $vat = (float)$value;

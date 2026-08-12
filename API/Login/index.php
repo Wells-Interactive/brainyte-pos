@@ -37,7 +37,7 @@ if ($action === 'add_user') {
     $password = (string)($body['password'] ?? '');
     $role = trim((string)($body['role'] ?? ''));
 
-    if ($name === '' || $email === '' || $password === '' || !in_array($role, ['waiter', 'kitchen', 'bar', 'manager', 'supervisor', 'admin'], true)) {
+    if ($name === '' || $email === '' || $password === '' || !in_array($role, ['waiter', 'kitchen', 'bar', 'manager', 'supervisor', 'admin', 'rider'], true)) {
         json_response(['error' => 'Name, email, password and valid role are required'], 400);
     }
 

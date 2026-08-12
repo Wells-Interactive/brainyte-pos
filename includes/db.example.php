@@ -61,8 +61,8 @@ function ensure_user_role_enum(PDO $pdo): void
         return;
     }
     $type = (string)($column['Type'] ?? '');
-    if (stripos($type, 'manager') === false || stripos($type, 'supervisor') === false || stripos($type, 'owner') === false) {
-        $pdo->exec("ALTER TABLE users MODIFY role ENUM('waiter','kitchen','bar','manager','supervisor','admin','owner') NOT NULL");
+    if (stripos($type, 'customer') === false || stripos($type, 'rider') === false) {
+        $pdo->exec("ALTER TABLE users MODIFY role ENUM('waiter','kitchen','bar','manager','supervisor','admin','owner','customer','rider') NOT NULL");
     }
 }
 
@@ -95,7 +95,7 @@ function ensure_database_schema(PDO $pdo): void
         name VARCHAR(80) NOT NULL,
         email VARCHAR(120) NOT NULL UNIQUE,
         password_hash VARCHAR(255) NOT NULL,
-        role ENUM('waiter', 'kitchen', 'bar', 'manager', 'supervisor', 'admin', 'owner') NOT NULL,
+        role ENUM('waiter', 'kitchen', 'bar', 'manager', 'supervisor', 'admin', 'owner', 'customer', 'rider') NOT NULL,
         created_at DATETIME NOT NULL
     ) ENGINE=InnoDB");
 
@@ -236,6 +236,34 @@ function ensure_database_schema(PDO $pdo): void
         FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
     ) ENGINE=InnoDB");
 
+    // Home delivery: profiles, email verification and rider location tracking
+    $pdo->exec("CREATE TABLE IF NOT EXISTS customer_profiles (
+        user_id INT PRIMARY KEY, phone_number VARCHAR(30) NOT NULL,
+        email_verified_at DATETIME DEFAULT NULL, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS email_verification_codes (
+        id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, code_hash VARCHAR(255) NOT NULL,
+        expires_at DATETIME NOT NULL, consumed_at DATETIME DEFAULT NULL, created_at DATETIME NOT NULL,
+        INDEX idx_evc_user_expires (user_id, expires_at), FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS delivery_orders (
+        id INT AUTO_INCREMENT PRIMARY KEY, customer_id INT NOT NULL, rider_id INT DEFAULT NULL, items_json JSON NOT NULL,
+        total_amount DECIMAL(9,2) NOT NULL DEFAULT 0.00, delivery_address TEXT NOT NULL, phone_number VARCHAR(30) NOT NULL,
+        alternate_phone_number VARCHAR(30) DEFAULT NULL, special_requests TEXT DEFAULT NULL,
+        latitude DECIMAL(10,7) DEFAULT NULL, longitude DECIMAL(10,7) DEFAULT NULL,
+        status ENUM('requested','accepted','preparing','out_for_delivery','delivered','cancelled') NOT NULL DEFAULT 'requested',
+        payment_method ENUM('cash','pos','transfer','pending') NOT NULL DEFAULT 'pending', created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
+        INDEX idx_delivery_customer_created (customer_id, created_at), INDEX idx_delivery_rider_status (rider_id, status), INDEX idx_delivery_status_created (status, created_at),
+        FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE RESTRICT, FOREIGN KEY (rider_id) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS delivery_tracking (
+        id INT AUTO_INCREMENT PRIMARY KEY, delivery_order_id INT NOT NULL, rider_id INT NOT NULL,
+        latitude DECIMAL(10,7) NOT NULL, longitude DECIMAL(10,7) NOT NULL, accuracy_meters DECIMAL(8,2) DEFAULT NULL, recorded_at DATETIME NOT NULL,
+        INDEX idx_tracking_delivery_recorded (delivery_order_id, recorded_at),
+        FOREIGN KEY (delivery_order_id) REFERENCES delivery_orders(id) ON DELETE CASCADE, FOREIGN KEY (rider_id) REFERENCES users(id) ON DELETE RESTRICT
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
     // Schema Migrations Tracking
     $pdo->exec("CREATE TABLE IF NOT EXISTS schema_migrations (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -316,6 +344,15 @@ function ensure_database_schema(PDO $pdo): void
         FOREIGN KEY (performed_by) REFERENCES users(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci");
 
+    // Supplier receiving, table-close evidence, cancellation approvals, password reset and push subscriptions.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS suppliers (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(150) NOT NULL, contact_name VARCHAR(120) DEFAULT NULL, phone_number VARCHAR(30) DEFAULT NULL, email VARCHAR(120) DEFAULT NULL, address TEXT DEFAULT NULL, notes TEXT DEFAULT NULL, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL, INDEX idx_suppliers_name (name)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS supply_receipts (id INT AUTO_INCREMENT PRIMARY KEY, supplier_id INT NOT NULL, reference_number VARCHAR(100) DEFAULT NULL, received_by_user_id INT NOT NULL, receipt_file_path VARCHAR(500) DEFAULT NULL, notes TEXT DEFAULT NULL, received_at DATETIME NOT NULL, created_at DATETIME NOT NULL, INDEX idx_supply_supplier_received (supplier_id, received_at), FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE RESTRICT, FOREIGN KEY (received_by_user_id) REFERENCES users(id) ON DELETE RESTRICT) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS supply_receipt_items (id INT AUTO_INCREMENT PRIMARY KEY, supply_receipt_id INT NOT NULL, inventory_item_id INT NOT NULL, quantity DECIMAL(9,2) NOT NULL, unit_cost DECIMAL(9,2) DEFAULT NULL, INDEX idx_supply_receipt_item (supply_receipt_id), FOREIGN KEY (supply_receipt_id) REFERENCES supply_receipts(id) ON DELETE CASCADE, FOREIGN KEY (inventory_item_id) REFERENCES inventory_items(id) ON DELETE RESTRICT) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS table_close_evidence (id INT AUTO_INCREMENT PRIMARY KEY, table_id INT NOT NULL, order_id INT NOT NULL, waiter_id INT NOT NULL, image_path VARCHAR(500) NOT NULL, created_at DATETIME NOT NULL, INDEX idx_tce_table_created (table_id, created_at), FOREIGN KEY (table_id) REFERENCES restaurant_tables(id) ON DELETE RESTRICT, FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE RESTRICT, FOREIGN KEY (waiter_id) REFERENCES users(id) ON DELETE RESTRICT) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS order_cancellation_requests (id INT AUTO_INCREMENT PRIMARY KEY, order_id INT NOT NULL, requested_by_user_id INT NOT NULL, reason TEXT NOT NULL, status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending', reviewed_by_user_id INT DEFAULT NULL, review_notes TEXT DEFAULT NULL, created_at DATETIME NOT NULL, reviewed_at DATETIME DEFAULT NULL, UNIQUE KEY uq_cancel_request_order_pending (order_id, status), FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE, FOREIGN KEY (requested_by_user_id) REFERENCES users(id) ON DELETE RESTRICT, FOREIGN KEY (reviewed_by_user_id) REFERENCES users(id) ON DELETE SET NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS password_reset_codes (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, code_hash VARCHAR(255) NOT NULL, expires_at DATETIME NOT NULL, consumed_at DATETIME DEFAULT NULL, created_at DATETIME NOT NULL, INDEX idx_prc_user_expires (user_id, expires_at), FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS push_subscriptions (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, platform ENUM('web','android','ios') NOT NULL, token VARCHAR(512) NOT NULL, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL, UNIQUE KEY uq_push_subscription_token (token), INDEX idx_push_user_platform (user_id, platform), FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci");
+
     // Initialize inventory records for existing menu items
     try {
         $pdo->exec("INSERT IGNORE INTO inventory_items (menu_item_id, current_stock, min_stock_level, unit, created_at, updated_at)
@@ -355,6 +392,7 @@ function ensure_database_schema(PDO $pdo): void
         ['printer_type', 'thermal'],
         ['footer_text', 'Powered by Brainyte'],
         ['direct_printing', '0'],
+        ['home_delivery_enabled', '0'],
     ];
     $settingStmt = $pdo->prepare('INSERT IGNORE INTO settings (setting_key, setting_value, updated_at) VALUES (:key, :value, :updated_at)');
     foreach ($defaultSettings as $setting) {

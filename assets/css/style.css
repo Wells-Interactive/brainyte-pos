@@ -1004,6 +1004,11 @@ textarea#instructions {
     min-width: 50px;
 }
 
+.admin-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(270px, 340px); gap: 1rem; align-items: start; }
+.admin-main { min-width: 0; }
+.admin-settings-panel { position: sticky; top: 1rem; display: grid; gap: 1rem; }
+@media (max-width: 900px) { .admin-workspace { grid-template-columns: 1fr; } .admin-settings-panel { position: static; } }
+
 /* ============================================================
    BRAINYTE POPUP MODAL
    ============================================================ */

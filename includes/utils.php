@@ -784,7 +784,47 @@ function create_notification(
         ':reference_id' => $referenceId,
         ':created_at' => $now,
     ]);
-    return (int)$pdo->lastInsertId();
+    $notificationId = (int)$pdo->lastInsertId();
+    // Best-effort only: notification records remain authoritative if FCM is unavailable.
+    if (dispatch_firebase_notification($pdo, $targetRole, $targetUserId, $title, $body, $referenceType, $referenceId)) {
+        $pdo->prepare('UPDATE notifications SET sent_to_push = 1 WHERE id = :id')->execute([':id' => $notificationId]);
+    }
+    return $notificationId;
+}
+
+/** Send FCM HTTP v1 notifications when a service-account path is configured. */
+function dispatch_firebase_notification(PDO $pdo, string $targetRole, ?int $targetUserId, string $title, string $body, ?string $referenceType, ?int $referenceId): bool
+{
+    $path = getenv('FIREBASE_SERVICE_ACCOUNT_PATH') ?: '';
+    if ($path === '' || !is_readable($path) || !function_exists('curl_init')) return false;
+    try {
+        $service = json_decode((string)file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+        if (empty($service['project_id']) || empty($service['client_email']) || empty($service['private_key'])) return false;
+        $base64url = static fn(string $value): string => rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+        $now = time();
+        $header = $base64url(json_encode(['alg' => 'RS256', 'typ' => 'JWT'], JSON_THROW_ON_ERROR));
+        $claims = $base64url(json_encode(['iss' => $service['client_email'], 'scope' => 'https://www.googleapis.com/auth/firebase.messaging', 'aud' => 'https://oauth2.googleapis.com/token', 'iat' => $now, 'exp' => $now + 3600], JSON_THROW_ON_ERROR));
+        openssl_sign("{$header}.{$claims}", $signature, $service['private_key'], OPENSSL_ALGO_SHA256);
+        $jwt = "{$header}.{$claims}." . $base64url($signature);
+        $curl = curl_init('https://oauth2.googleapis.com/token');
+        curl_setopt_array($curl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => http_build_query(['grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer', 'assertion' => $jwt]), CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 8]);
+        $oauth = json_decode((string)curl_exec($curl), true); curl_close($curl);
+        $accessToken = $oauth['access_token'] ?? ''; if ($accessToken === '') return false;
+        $sql = 'SELECT p.token FROM push_subscriptions p JOIN users u ON u.id = p.user_id WHERE ';
+        $params = [];
+        if ($targetUserId !== null) { $sql .= 'p.user_id = :user_id'; $params[':user_id'] = $targetUserId; }
+        elseif ($targetRole === 'all') { $sql .= '1=1'; }
+        else { $sql .= 'u.role = :role'; $params[':role'] = $targetRole; }
+        $stmt = $pdo->prepare($sql); $stmt->execute($params); $tokens = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        $sent = false;
+        foreach ($tokens as $token) {
+            $payload = json_encode(['message' => ['token' => $token, 'notification' => ['title' => $title, 'body' => $body], 'data' => ['reference_type' => (string)$referenceType, 'reference_id' => (string)$referenceId]]], JSON_THROW_ON_ERROR);
+            $curl = curl_init('https://fcm.googleapis.com/v1/projects/' . rawurlencode($service['project_id']) . '/messages:send');
+            curl_setopt_array($curl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $payload, CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $accessToken, 'Content-Type: application/json'], CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 8]);
+            curl_exec($curl); $code = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE); curl_close($curl); $sent = $sent || ($code >= 200 && $code < 300);
+        }
+        return $sent;
+    } catch (Throwable $e) { error_log('Firebase notification dispatch failed: ' . $e->getMessage()); return false; }
 }
 
 /**

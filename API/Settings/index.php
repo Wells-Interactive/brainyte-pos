@@ -67,6 +67,7 @@ if ($method === 'POST') {
 
     $allowedKeys = [
         'direct_printing',
+        'home_delivery_enabled',
         'restaurant_name',
         'logo_url',
         'vat_rate',
@@ -80,7 +81,7 @@ if ($method === 'POST') {
         json_response(['error' => 'Invalid setting key'], 400);
     }
 
-    if ($settingKey === 'direct_printing' && !in_array($settingValue, ['0', '1'], true)) {
+    if (in_array($settingKey, ['direct_printing', 'home_delivery_enabled'], true) && !in_array($settingValue, ['0', '1'], true)) {
         json_response(['error' => 'Setting value must be 0 or 1'], 400);
     }
 

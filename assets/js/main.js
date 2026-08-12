@@ -656,8 +656,12 @@ if ('serviceWorker' in navigator) {
 // ============================================================
 // DIRECT PRINTING TOGGLE
 // ============================================================
+import { registerFirebaseWebPush } from './firebase-push.js';
+
 const directPrintingToggle = document.getElementById('directPrintingToggle');
 const directPrintingStatus = document.getElementById('directPrintingStatus');
+const homeDeliveryToggle = document.getElementById('homeDeliveryToggle');
+const homeDeliveryStatus = document.getElementById('homeDeliveryStatus');
 
 async function loadDirectPrintingSetting() {
     if (!directPrintingToggle) return;
@@ -711,3 +715,30 @@ if (directPrintingToggle) {
         }
     });
 }
+
+async function loadHomeDeliverySetting() {
+    if (!homeDeliveryToggle) return;
+    try {
+        const response = await fetch('/API/Settings/index.php');
+        const result = await response.json(); const data = result.data || result;
+        const enabled = data.settings?.home_delivery_enabled === '1';
+        homeDeliveryToggle.classList.toggle('active', enabled);
+        if (homeDeliveryStatus) homeDeliveryStatus.textContent = enabled ? 'Enabled' : 'Disabled';
+    } catch (error) { console.error('Failed to load home delivery setting', error); }
+}
+async function toggleHomeDelivery() {
+    if (!homeDeliveryToggle) return;
+    const value = homeDeliveryToggle.classList.contains('active') ? '0' : '1';
+    try {
+        const response = await fetch('/API/Settings/index.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'home_delivery_enabled', value, csrf_token: getCsrfToken() }) });
+        const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Unable to update setting');
+        homeDeliveryToggle.classList.toggle('active', value === '1');
+        if (homeDeliveryStatus) homeDeliveryStatus.textContent = value === '1' ? 'Enabled' : 'Disabled';
+    } catch (error) { console.error('Failed to toggle home delivery', error); }
+}
+if (homeDeliveryToggle) {
+    loadHomeDeliverySetting(); homeDeliveryToggle.addEventListener('click', toggleHomeDelivery);
+    homeDeliveryToggle.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleHomeDelivery(); } });
+}
+
+registerFirebaseWebPush().catch((error) => console.warn('Firebase web push was not registered', error));

@@ -119,16 +119,8 @@ $csrf_token = generate_csrf_token();
                 <div id="inventoryAuditTrail" class="table-card">Loading...</div>
             </div>
 
-            <!-- Direct Printing Toggle (Admin/Owner Only) -->
-            <div class="card">
-                <h3>Print Settings</h3>
-                <div class="toggle-container">
-                    <span class="toggle-label">Direct Printing</span>
-                    <div id="directPrintingToggle" class="toggle-switch" role="button" tabindex="0" aria-label="Toggle direct printing"></div>
-                    <span id="directPrintingStatus" class="toggle-status">Disabled</span>
-                </div>
-                <p class="message" style="margin-top:0;font-size:0.9rem;">When enabled, orders from waiters are sent directly to the Kitchen and Bar thermal printers without appearing on their dashboards.</p>
-            </div>
+            <div class="admin-workspace">
+            <div class="admin-main">
 
             <div class="admin-controls">
                 <h3>Add Menu Item</h3>
@@ -187,10 +179,33 @@ $csrf_token = generate_csrf_token();
                         <option value="manager">Manager</option>
                         <option value="supervisor">Supervisor</option>
                         <option value="admin">Admin</option>
+                        <option value="rider">Rider</option>
                     </select>
                     <button type="submit" class="primary-button">Add User</button>
                 </form>
                 <div id="adminUserStatus" class="message"></div>
+            </div>
+            </div>
+            <aside class="admin-settings-panel" aria-label="Admin settings">
+                <div class="card">
+                    <h3>Print Settings</h3>
+                    <div class="toggle-container">
+                        <span class="toggle-label">Direct Printing</span>
+                        <div id="directPrintingToggle" class="toggle-switch" role="button" tabindex="0" aria-label="Toggle direct printing"></div>
+                        <span id="directPrintingStatus" class="toggle-status">Disabled</span>
+                    </div>
+                    <p class="message">Send orders directly to Kitchen and Bar thermal printers.</p>
+                </div>
+                <div class="card">
+                    <h3>Home Delivery</h3>
+                    <div class="toggle-container">
+                        <span class="toggle-label">Accept delivery requests</span>
+                        <div id="homeDeliveryToggle" class="toggle-switch" role="button" tabindex="0" aria-label="Toggle home delivery"></div>
+                        <span id="homeDeliveryStatus" class="toggle-status">Disabled</span>
+                    </div>
+                    <p class="message">Customers can register with email verification and request rider delivery.</p>
+                </div>
+            </aside>
             </div>
         </section>
     </main>
