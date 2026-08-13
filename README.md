@@ -67,12 +67,36 @@ Unlike traditional POS systems filled with unnecessary modules, Brainyte Restaur
 # ✨ Features
 
 ## 🔐 Authentication
+✅ Login System
+✅ Secure Sessions
+✅  User Roles
 
-- Login System
-- Secure Sessions
-- Logout
-- User Roles
+## 📦 Inventory Management
+✅ Inventory tracking per menu item
+✅ Current stock levels
+✅ Minimum stock levels
+✅ Stock units
+✅ Stock In
+✅ Stock Out
+✅ Manual stock adjustments
+✅ Adjustment reasons and audit trail
+✅ Inventory movement history
+✅ Low-stock alerts
+✅ Out-of-stock alerts
+✅ Automatic menu availability based on stock
+✅ Automatic stock deduction when orders are completed
+✅ Inventory dashboard statistics
 
+## 📊 Reporting
+✅ Dashboard reporting
+✅ Revenue reporting
+✅ Completed order reporting
+✅ Order and operational statistics
+✅ Payment reporting
+✅ Operations reporting
+✅ Best-selling item reporting
+✅ Table status reporting
+✅ Date-range based reporting
 
 ---
 
@@ -124,7 +148,21 @@ REST API
 - Orders
 - Status
 - Live Events
-
+- Inventory
+- Inventory Alerts
+- Reports
+- Notifications
+- Settings
+- Print Jobs
+- Operations
+- Suppliers
+- Stock Receiving
+- Order Cancellation
+- Push Notification Subscription
+- Table Close Evidence
+- Bearer Authentication
+- Token Refresh
+- Token Revocation
 ---
 
 # 💵 Currency
@@ -132,6 +170,7 @@ REST API
 ✔ Nigerian Naira (₦)
 
 ---
+
 
 # 🧾 VAT
 
@@ -166,6 +205,16 @@ VAT Rate
 | Branding | ✅ Complete |
 | Responsive Layout | ✅ Complete |
 | API | ✅ Complete |
+| Inventory Management | ✅ Complete
+| Inventory Alerts	| ✅ Complete
+| Stock Movement History | ✅ Complete
+| Automatic Stock Deduction |	✅ Complete
+| Suppliers / Stock Receiving	 | ✅ Complete
+| Push Notification Support	| ✅ Complete
+| Settings Management	| ✅ Complete
+| Direct Printing Support	| ✅ Complete
+
+
 
 
 
@@ -193,15 +242,19 @@ Web Version
 Testing & Bug Fixes
 
 - Performance Improvements
-- Centralized settings with admin/manager UI to manage them (**NEW)
-- Direct Printing (**NEW)
-- UI Polish
-- Security Review
-- 4 new tables: order_status_history, notifications, auth_tokens, settings (**NEW)
-- Bearer token auth, flutter ready (**NEW)
-- CSRF protection (**NEW)
-- Notification queue for all roles + Flutter readiness (**NEW)
-- Final Testing
+- Inventory Management (NEW - IMPLEMENTED)
+- Stock Movement & Audit Trail (NEW - IMPLEMENTED)
+- Low Stock & Out-of-Stock Alerts (NEW - IMPLEMENTED)
+- Automatic Inventory Deduction (NEW - IMPLEMENTED)
+- Supplier Management (NEW - IMPLEMENTED)
+- Stock Receiving (NEW - IMPLEMENTED)
+- Reporting API (NEW - IMPLEMENTED)
+- Notification Management (NEW - IMPLEMENTED)
+- Print Job Management (NEW - IMPLEMENTED)
+- Bearer Token + Refresh Token Authentication (NEW - IMPLEMENTED)
+- Token Revocation & Device Sessions (NEW - IMPLEMENTED)
+- Audit Logging (NEW - IMPLEMENTED)
+- Rate Limiting (NEW - IMPLEMENTED)
 
 **Current Stage**
 
@@ -255,10 +308,12 @@ Cloud Edition
 - HTML5
 - CSS3
 - REST API
-
-Future
-
-- Firebase Push Notifications
+- Server-Sent Events (SSE)
+- REST API v1
+- Bearer Token Authentication
+- Refresh Token Authentication
+- Firebase Cloud Messaging integration support
+- Thermal / Receipt / A4 Print Job Support
 
 ---
 
@@ -272,6 +327,7 @@ Powered by
 https://linktr.ee/wellsinteractive
 
 ---
+
 
 # 📌 Version
 
