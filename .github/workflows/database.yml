@@ -1,0 +1,146 @@
+name: Brainyte Database CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  database:
+    name: MySQL Database Validation
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: brainyte_test
+          MYSQL_USER: brainyte
+          MYSQL_PASSWORD: brainyte_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: brainyte_test
+      DB_USERNAME: brainyte
+      DB_PASSWORD: brainyte_test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Wait for MySQL
+        run: |
+          for i in {1..30}; do
+            if mysqladmin ping \
+              -h 127.0.0.1 \
+              -P 3306 \
+              -u root \
+              -proot \
+              --silent; then
+              echo "MySQL is ready."
+              exit 0
+            fi
+
+            echo "Waiting for MySQL..."
+            sleep 2
+          done
+
+          echo "MySQL failed to start."
+          exit 1
+
+      - name: Check database files
+        shell: bash
+        run: |
+          echo "Searching for SQL files..."
+
+          files=$(find . \
+            -type f \
+            \( -name "*.sql" -o -name "*.SQL" \) \
+            -not -path "./.git/*" \
+            -not -path "./vendor/*")
+
+          if [ -z "$files" ]; then
+            echo "No SQL files found."
+            echo "Database CI cannot validate a schema yet."
+            exit 0
+          fi
+
+          echo "SQL files found:"
+          echo "$files"
+
+      - name: Import SQL schema
+        shell: bash
+        run: |
+          set -e
+
+          files=$(find . \
+            -type f \
+            \( -name "*.sql" -o -name "*.SQL" \) \
+            -not -path "./.git/*" \
+            -not -path "./vendor/*" \
+            | sort)
+
+          if [ -z "$files" ]; then
+            echo "No SQL files to import."
+            exit 0
+          fi
+
+          while IFS= read -r file; do
+            echo "======================================"
+            echo "Importing: $file"
+            echo "======================================"
+
+            mysql \
+              --host=127.0.0.1 \
+              --port=3306 \
+              --user=brainyte \
+              --password=brainyte_test \
+              brainyte_test < "$file"
+
+          done <<< "$files"
+
+      - name: Verify database tables
+        run: |
+          mysql \
+            --host=127.0.0.1 \
+            --port=3306 \
+            --user=brainyte \
+            --password=brainyte_test \
+            brainyte_test \
+            -e "SHOW TABLES;"
+
+      - name: Verify database connectivity
+        run: |
+          mysql \
+            --host=127.0.0.1 \
+            --port=3306 \
+            --user=brainyte \
+            --password=brainyte_test \
+            brainyte_test \
+            -e "SELECT DATABASE() AS database_name, NOW() AS database_time;"
+
+      - name: Database CI completed
+        run: |
+          echo "======================================"
+          echo "Brainyte Database CI PASSED"
+          echo "======================================"
