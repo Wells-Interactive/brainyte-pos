@@ -1,0 +1,102 @@
+name: Brainyte Backend CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: PHP Backend Validation
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version:
+          - "8.2"
+          - "8.3"
+          - "8.4"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: pdo, pdo_mysql, mbstring, json
+          coverage: none
+          tools: composer
+
+      - name: Display PHP version
+        run: php -v
+
+      - name: Validate PHP configuration
+        run: php --ini
+
+      - name: Validate all PHP files
+        shell: bash
+        run: |
+          set -e
+
+          echo "Checking PHP syntax..."
+
+          files=$(find . \
+            -type f \
+            -name "*.php" \
+            -not -path "./.git/*" \
+            -not -path "./vendor/*")
+
+          if [ -z "$files" ]; then
+            echo "No PHP files found."
+            exit 0
+          fi
+
+          failed=0
+
+          while IFS= read -r file; do
+            echo "Checking: $file"
+
+            if ! php -l "$file"; then
+              failed=1
+            fi
+          done <<< "$files"
+
+          if [ "$failed" -ne 0 ]; then
+            echo "PHP syntax validation failed."
+            exit 1
+          fi
+
+          echo "All PHP files passed syntax validation."
+
+      - name: Install Composer dependencies
+        if: hashFiles('composer.lock') != ''
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Check Composer configuration
+        if: hashFiles('composer.json') != ''
+        run: composer validate --no-check-publish
+
+      - name: Run PHPUnit tests
+        if: hashFiles('phpunit.xml', 'phpunit.xml.dist') != ''
+        run: vendor/bin/phpunit
+
+      - name: Backend CI completed
+        run: |
+          echo "======================================"
+          echo "Brainyte Backend CI PASSED"
+          echo "PHP ${{ matrix.php-version }}"
+          echo "======================================"
