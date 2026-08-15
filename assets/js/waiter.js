@@ -53,7 +53,9 @@ function formatCurrency(value) {
 async function fetchTables() {
     const response = await fetch('/API/Status/index.php');
     const data = await response.json();
-    tableGrid.innerHTML = data.tables
+    // Support both v1 format (data.data.tables) and legacy format (data.tables)
+    const tables = data?.data?.tables ?? data?.tables ?? [];
+    tableGrid.innerHTML = tables
         .map((table) => `
             <button type="button" class="table-card status-${table.status || 'available'}" data-id="${table.id}" data-name="${table.name}">
                 <strong>${table.name}</strong>
