@@ -115,7 +115,7 @@ if ($dbConnected) {
 	// The legacy SQL migration runner is intentionally not executed here.
 	// This prevents conflicts between ensure_database_schema() and the
 	// database/migrations/*.sql files.
-		}
+	}
 ?>
 <!DOCTYPE html>
 <html lang="en">

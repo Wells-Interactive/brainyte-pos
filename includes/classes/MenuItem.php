@@ -119,7 +119,7 @@ class MenuItem
             ':created_at' => date('Y-m-d H:i:s'),
         ]);
 
-        return $this->pdo->lastInsertId();
+        return (int) $this->pdo->lastInsertId();
     }
 
     /**

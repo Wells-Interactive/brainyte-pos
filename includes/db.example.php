@@ -317,7 +317,7 @@ function ensure_database_schema(PDO $pdo): void
         unit VARCHAR(30) NOT NULL DEFAULT 'pieces',
         created_at DATETIME NOT NULL,
         updated_at DATETIME NOT NULL,
-        INDEX idx_inventory_menu_item (menu_item_id),
+        UNIQUE KEY uq_inventory_menu_item (menu_item_id),
         INDEX idx_inventory_stock_level (current_stock),
         INDEX idx_inventory_min_stock (min_stock_level),
         FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE CASCADE
@@ -353,13 +353,6 @@ function ensure_database_schema(PDO $pdo): void
     $pdo->exec("CREATE TABLE IF NOT EXISTS password_reset_codes (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, code_hash VARCHAR(255) NOT NULL, expires_at DATETIME NOT NULL, consumed_at DATETIME DEFAULT NULL, created_at DATETIME NOT NULL, INDEX idx_prc_user_expires (user_id, expires_at), FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci");
     $pdo->exec("CREATE TABLE IF NOT EXISTS push_subscriptions (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, platform ENUM('web','android','ios') NOT NULL, token VARCHAR(512) NOT NULL, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL, UNIQUE KEY uq_push_subscription_token (token), INDEX idx_push_user_platform (user_id, platform), FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci");
 
-    // Initialize inventory records for existing menu items
-    try {
-        $pdo->exec("INSERT IGNORE INTO inventory_items (menu_item_id, current_stock, min_stock_level, unit, created_at, updated_at)
-                     SELECT id, 0, 10, 'pieces', NOW(), NOW() FROM menu_items");
-    } catch (Throwable $e) {
-        // Table may not exist yet during first setup
-    }
 
     // Ensure backward-compatible columns
     ensure_column($pdo, 'menu_items', 'available', 'TINYINT(1) NOT NULL DEFAULT 1');
@@ -430,6 +423,9 @@ function get_db(): PDO
         DB_PASS,
         $options
     );
+
+    // Create/update the application database schema.
+    ensure_database_schema($pdo);
 
     return $pdo;
 }

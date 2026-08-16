@@ -22,11 +22,10 @@ class Inventory
     private PDO $pdo;
 
     public function __construct(PDO $pdo)
-    {
-        $this->pdo = $pdo;
-        $this->ensureTables();
-        $this->ensureInitialRecords();
-    }
+	{
+    		$this->pdo = $pdo;
+    		$this->ensureTables();
+	}
 
     /**
      * Ensure inventory tables exist (backward compatible).
@@ -68,18 +67,7 @@ class Inventory
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci");
     }
 
-    /**
-     * Ensure all menu items have an inventory record.
-     */
-    private function ensureInitialRecords(): void
-    {
-        try {
-            $this->pdo->exec("INSERT IGNORE INTO `inventory_items` (`menu_item_id`, `current_stock`, `min_stock_level`, `unit`, `created_at`, `updated_at`)
-                              SELECT `id`, 0, 10, 'pieces', NOW(), NOW() FROM `menu_items`");
-        } catch (Throwable $e) {
-            // Ignore if tables don't exist yet
-        }
-    }
+   
 
     /**
      * Get all inventory items with related menu item data.
