@@ -256,58 +256,6 @@ SQL;
         return (int)$stmt->fetchColumn();
     }
 
-/**
- * Execute a complete SQL migration script.
- *
- * MySQL supports multi-statements through PDO::exec().
- * We intentionally execute the migration as one script instead
- * of splitting it on semicolons.
- */
-private function executeSqlScript(string $sql): void
-{
-    $sql = trim($sql);
-
-    if ($sql === '') {
-        return;
-    }
-
-    /*
-     * Remove UTF-8 BOM if present.
-     */
-    $sql = preg_replace('/^\xEF\xBB\xBF/', '', $sql);
-
-    /*
-     * PDO::exec() can execute multiple MySQL statements when
-     * MYSQL_ATTR_MULTI_STATEMENTS is enabled.
-     *
-     * The migration connection uses the same PDO connection,
-     * so enable it explicitly for this execution.
-     */
-    $this->pdo->setAttribute(PDO::MYSQL_ATTR_MULTI_STATEMENTS, true);
-
-    $this->pdo->exec($sql);
-
-    /*
-     * Consume any remaining result sets produced by a
-     * multi-statement script.
-     *
-     * This is important because otherwise MySQL can report:
-     *
-     * SQLSTATE[HY000]: General error: 2014
-     * Cannot execute queries while other unbuffered queries
-     * are active.
-     */
-    while ($this->pdo->nextRowset()) {
-        // Consume remaining result sets.
-    }
-
-    /*
-     * Restore normal behaviour.
-     */
-    $this->pdo->setAttribute(PDO::MYSQL_ATTR_MULTI_STATEMENTS, false);
-}
-
-
     /**
      * Split SQL into statements.
      *

@@ -41,6 +41,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '')
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES => false,
+                PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
             ]);
             $test = null;
 
@@ -110,15 +111,11 @@ if ($dbConnected) {
         exit;
     }
 
-    // Try to run migrations automatically
-    try {
-        $migration = new \App\Migration($pdo);
-        $migration->migrate();
-    } catch (\Throwable $e) {
-        // Migrations are optional - db.example.php will create tables dynamically
-        error_log('Setup migration error: ' . $e->getMessage());
-    }
-}
+    	// Database schema is created and maintained by includes/db.php.
+	// The legacy SQL migration runner is intentionally not executed here.
+	// This prevents conflicts between ensure_database_schema() and the
+	// database/migrations/*.sql files.
+		}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -399,7 +396,7 @@ if ($dbConnected) {
                     goToStep(3);
                     // Redirect to login
                     setTimeout(() => {
-                        window.location.href = '/Login/index.php';
+                        window.location.href = '/Admin/Menu/index.php';
                     }, 3000);
                 } else {
                     msgEl.textContent = result.error || 'Setup failed. Please try again.';

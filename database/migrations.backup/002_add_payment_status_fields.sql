@@ -3,7 +3,7 @@
 
 ALTER TABLE `orders`
     ADD COLUMN `payment_status`
-        ENUM('unpaid','partial','paid','refunded','voided')
+        ENUM('unpaid', 'partial', 'paid', 'refunded', 'voided')
         NOT NULL DEFAULT 'unpaid'
         AFTER `payment_method`;
 
