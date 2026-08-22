@@ -48,7 +48,7 @@ if (in_array($loggedIn, ['manager', 'supervisor'], true)) {
     exit;
 }
 if (in_array($loggedIn, ['admin', 'owner'], true)) {
-    header('Location: /Admin/index.php');
+    header('Location: /Admin/Menu/index.php');
     exit;
 }
 $role = $loggedIn ?: 'guest';

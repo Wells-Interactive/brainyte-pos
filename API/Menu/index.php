@@ -52,6 +52,17 @@ if ($method === 'POST' || $method === 'PUT') {
 
         try {
             $itemId = $menuItem->create($name, $description, $price, $cat, $available);
+
+            $inventoryStmt = $pdo->prepare(
+                "INSERT IGNORE INTO inventory_items (menu_item_id, current_stock, min_stock_level, unit, created_at, updated_at)
+                 VALUES (:menu_item_id, 0, 10, 'pieces', :created_at, :updated_at)"
+            );
+            $inventoryStmt->execute([
+                ':menu_item_id' => $itemId,
+                ':created_at' => date('Y-m-d H:i:s'),
+                ':updated_at' => date('Y-m-d H:i:s'),
+            ]);
+
             $auditLog->dataChange($authUser['id'], 'menu_item', $itemId, 'create', "Created menu item {$name} ({$cat}) at ₦{$price}");
             json_response(['success' => true, 'item_id' => $itemId]);
         } catch (Throwable $exception) {

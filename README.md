@@ -328,7 +328,7 @@ https://linktr.ee/wellsinteractive
 # 📌 Version
 
 ```
-Brainyte Restaurant POS - Current Version 2.1 Stable
+Brainyte Restaurant POS - Current Version 2.2 Stable
 ```
 
 ---
