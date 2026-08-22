@@ -41,9 +41,8 @@ Unlike traditional POS systems filled with unnecessary modules, Brainyte Restaur
 |:--------:|:---:|:------------:|:---------:|
 | <img src="assets/images/menu_screen.png" width="220"> | <img src="assets/images/quantity_add.png" width="220"> | <img src="assets/images/quantity_add_2.png" width="220"> | <img src="assets/images/water_screen.png" width="220"> |
 
-| Setup | Admin Dash | Admin Item | Admin Price |
-|:--------:|:---:|:------------:|:---------:|
-<img src="assets/images/setup.png" width="220"> | <img src="assets/images/admin_menu.png" width="220"> | <img src="assets/images/add_item.png" width="220"> | <img src="assets/images/update price.png" width="220"> |
+| Admin Dashboard
+<img src="assets/admin_dashboard.png" width="900">
 
 
 </div>
