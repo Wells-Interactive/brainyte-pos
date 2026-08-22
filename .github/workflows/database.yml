@@ -77,7 +77,8 @@ jobs:
             -type f \
             \( -name "*.sql" -o -name "*.SQL" \) \
             -not -path "./.git/*" \
-            -not -path "./vendor/*")
+            -not -path "./vendor/*" \
+            -not -path "./database/migrations.backup/*")
 
           if [ -z "$files" ]; then
             echo "No SQL files found."
@@ -98,6 +99,7 @@ jobs:
             \( -name "*.sql" -o -name "*.SQL" \) \
             -not -path "./.git/*" \
             -not -path "./vendor/*" \
+            -not -path "./database/migrations.backup/*" \
             | sort)
 
           if [ -z "$files" ]; then
