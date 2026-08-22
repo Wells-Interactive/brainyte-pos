@@ -37,12 +37,9 @@ Unlike traditional POS systems filled with unnecessary modules, Brainyte Restaur
 |:------:|:------:|:----:|:-----:|
 | <img src="assets/images/login_screen.jpg" width="220"> | <img src="assets/images/table_screen.png" width="220"> | <img src="assets/images/confirm_order.png" width="220"> | <img src="assets/images/total_screen.png" width="220"> |
 
-| Kitchen | Beer | Grill | Water |
-|:--------:|:---:|:------------:|:---------:|
-| <img src="assets/images/menu_screen.png" width="220"> | <img src="assets/images/quantity_add.png" width="220"> | <img src="assets/images/quantity_add_2.png" width="220"> | <img src="assets/images/water_screen.png" width="220"> |
 
 | Admin Dashboard
-<img src="assets/admin_dashboard.png" width="900">
+<img src="assets/images/admin_dashboard.png" width="900">
 
 
 </div>
