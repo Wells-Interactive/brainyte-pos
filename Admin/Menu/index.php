@@ -167,6 +167,15 @@ $csrf_token = generate_csrf_token();
             <button
                 type="button"
                 class="admin-nav-item"
+                data-admin-section="tables"
+            >
+                <i data-lucide="table"></i>
+                <span>Tables</span>
+            </button>
+
+            <button
+                type="button"
+                class="admin-nav-item"
                 data-admin-section="staff"
             >
                 <i data-lucide="users"></i>
@@ -180,6 +189,15 @@ $csrf_token = generate_csrf_token();
             >
                 <i data-lucide="bar-chart-3"></i>
                 <span>Reports</span>
+            </button>
+
+            <button
+                type="button"
+                class="admin-nav-item"
+                data-admin-section="tracking"
+            >
+                <i data-lucide="map-pin"></i>
+                <span>Tracking</span>
             </button>
 
             <div class="admin-sidebar-divider"></div>
@@ -231,7 +249,7 @@ $csrf_token = generate_csrf_token();
          MAIN CONTENT
     ====================================================== -->
 
-    <main class="admin-main-content">
+    <main class="admin-main-content" id="adminDashboard">
 
         <!-- =================================================
              DASHBOARD
@@ -1074,6 +1092,130 @@ $csrf_token = generate_csrf_token();
 
 
         <!-- =================================================
+             TABLES
+        ================================================== -->
+
+        <section
+            class="admin-section"
+            id="adminSectionTables"
+            data-section="tables"
+        >
+
+            <div class="admin-section-header">
+
+                <div>
+                    <span class="admin-eyebrow">FLOOR</span>
+                    <h1>Tables</h1>
+                    <p>Manage restaurant tables and floor layout.</p>
+                </div>
+
+            </div>
+
+
+            <div class="admin-management-grid">
+
+                <article class="admin-panel">
+
+                    <div class="admin-panel-header">
+
+                        <div>
+                            <h2>Add Table</h2>
+                            <p>Create a new table for the restaurant floor.</p>
+                        </div>
+
+                        <i data-lucide="plus-circle"></i>
+
+                    </div>
+
+
+                    <form
+                        id="adminAddTableForm"
+                        class="admin-form"
+                    >
+
+                        <div class="form-field">
+
+                            <label for="adminTableNumber">
+                                Table Number
+                            </label>
+
+                            <input
+                                id="adminTableNumber"
+                                name="table_number"
+                                type="number"
+                                min="1"
+                                placeholder="e.g. 21"
+                            >
+
+                            <small>
+                                Leave empty to auto-assign the next available number.
+                            </small>
+
+                        </div>
+
+
+                        <div class="form-field">
+
+                            <label for="adminTableName">
+                                Table Name
+                            </label>
+
+                            <input
+                                id="adminTableName"
+                                name="table_name"
+                                type="text"
+                                placeholder="e.g. Window Table"
+                            >
+
+                        </div>
+
+
+                        <button
+                            type="submit"
+                            class="primary-button"
+                        >
+                            <i data-lucide="plus"></i>
+                            Add Table
+                        </button>
+
+                    </form>
+
+                    <div
+                        id="adminTableStatus"
+                        class="form-status"
+                    ></div>
+
+                </article>
+
+
+                <article class="admin-panel">
+
+                    <div class="admin-panel-header">
+
+                        <div>
+                            <h2>Current Tables</h2>
+                            <p>Active restaurant tables.</p>
+                        </div>
+
+                        <i data-lucide="table"></i>
+
+                    </div>
+
+                    <div
+                        id="adminTablesList"
+                        class="admin-table-wrapper"
+                    >
+                        Loading tables...
+                    </div>
+
+                </article>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
              STAFF
         ================================================== -->
 
@@ -1472,6 +1614,87 @@ $csrf_token = generate_csrf_token();
 
 
         <!-- =================================================
+             TRACKING
+        ================================================== -->
+
+        <section
+            class="admin-section"
+            id="adminSectionTracking"
+            data-section="tracking"
+        >
+
+            <div class="admin-section-header">
+
+                <div>
+                    <span class="admin-eyebrow">LOCATION</span>
+                    <h1>Rider Tracking</h1>
+                    <p>Monitor rider locations and delivery status in real time.</p>
+                </div>
+
+                <div class="admin-header-actions">
+
+                    <button
+                        type="button"
+                        class="secondary-button admin-refresh-button"
+                        id="adminRefreshTracking"
+                    >
+                        <i data-lucide="refresh-cw"></i>
+                        Refresh
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <article class="admin-panel">
+
+                <div class="admin-panel-header">
+
+                    <div>
+                        <h2>Active Deliveries</h2>
+                        <p>Current rider assignments and latest locations.</p>
+                    </div>
+
+                    <i data-lucide="map-pin"></i>
+
+                </div>
+
+                <div
+                    id="adminTrackingTable"
+                    class="admin-table-wrapper"
+                >
+                    Loading tracking data...
+                </div>
+
+            </article>
+
+            <article class="admin-panel">
+
+                <div class="admin-panel-header">
+
+                    <div>
+                        <h2>Rider Summary</h2>
+                        <p>Delivery counts and last known status.</p>
+                    </div>
+
+                    <i data-lucide="users"></i>
+
+                </div>
+
+                <div
+                    id="adminRiderSummary"
+                    class="admin-table-wrapper"
+                >
+                    Loading rider summary...
+                </div>
+
+            </article>
+
+        </section>
+
+
+        <!-- =================================================
              SETTINGS
         ================================================== -->
 
@@ -1835,10 +2058,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
             }
         );
+    }
 
+
+    /*
+     * Tracking refresh.
+     */
+    const trackingRefreshButton =
+        document.getElementById('adminRefreshTracking');
+
+    if (trackingRefreshButton) {
+        trackingRefreshButton.addEventListener(
+            'click',
+            async () => {
+                trackingRefreshButton.classList.add('is-loading');
+                if (typeof loadAdminTracking === 'function') {
+                    await loadAdminTracking();
+                }
+                trackingRefreshButton.classList.remove('is-loading');
+            }
+        );
     }
 
 });
+
 </script>
 
 </body>

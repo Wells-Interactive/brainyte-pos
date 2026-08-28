@@ -75,6 +75,9 @@ if ($method === 'POST') {
         'timezone',
         'printer_type',
         'footer_text',
+        'delivery_base_price',
+        'delivery_per_km_rate',
+        'delivery_max_distance',
     ];
 
     if (!in_array($settingKey, $allowedKeys, true)) {

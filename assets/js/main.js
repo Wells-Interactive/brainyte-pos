@@ -741,4 +741,155 @@ if (homeDeliveryToggle) {
     homeDeliveryToggle.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleHomeDelivery(); } });
 }
 
+async function loadAdminTracking() {
+    const trackingTable = document.getElementById('adminTrackingTable');
+    const riderSummary = document.getElementById('adminRiderSummary');
+    if (!trackingTable && !riderSummary) return;
+
+    try {
+        const response = await fetch('/API/v1/reports/index.php?report=tracking&scope=day');
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Unable to load tracking data');
+        const data = result.data || result;
+
+        if (trackingTable) {
+            const tracking = Array.isArray(data.tracking) ? data.tracking : [];
+            if (tracking.length === 0) {
+                trackingTable.innerHTML = '<div class="empty-state"><i data-lucide="map-pin"></i><h3>No tracking data</h3><p>Delivery locations will appear here.</p></div>';
+            } else {
+                const rows = tracking.map(item => `
+                    <tr>
+                        <td>#${item.delivery_id}</td>
+                        <td>${sanitizeHtml(item.rider_name || 'Unassigned')}</td>
+                        <td>${sanitizeHtml(item.delivery_status || '')}</td>
+                        <td>${item.latitude !== null && item.longitude !== null ? `${Number(item.latitude).toFixed(5)}, ${Number(item.longitude).toFixed(5)}` : 'No location'}</td>
+                        <td>${item.accuracy_meters ? Number(item.accuracy_meters).toFixed(0) + 'm' : '-'}</td>
+                        <td>${item.recorded_at ? new Date(item.recorded_at).toLocaleString() : '-'}</td>
+                    </tr>
+                `).join('');
+                trackingTable.innerHTML = `<table class="admin-table"><thead><tr><th>Delivery</th><th>Rider</th><th>Status</th><th>Location</th><th>Accuracy</th><th>Updated</th></tr></thead><tbody>${rows}</tbody></table>`;
+            }
+        }
+
+        if (riderSummary) {
+            const riders = Array.isArray(data.rider_summary) ? data.rider_summary : [];
+            if (riders.length === 0) {
+                riderSummary.innerHTML = '<div class="empty-state"><i data-lucide="users"></i><h3>No riders found</h3></div>';
+            } else {
+                const rows = riders.map(rider => `
+                    <tr>
+                        <td>${sanitizeHtml(rider.rider_name || 'Rider #' + rider.rider_id)}</td>
+                        <td>${Number(rider.total_deliveries || 0)}</td>
+                        <td>${Number(rider.delivered_count || 0)}</td>
+                        <td>${Number(rider.active_count || 0)}</td>
+                        <td>${rider.last_location_update ? new Date(rider.last_location_update).toLocaleString() : 'Never'}</td>
+                    </tr>
+                `).join('');
+                riderSummary.innerHTML = `<table class="admin-table"><thead><tr><th>Rider</th><th>Total</th><th>Delivered</th><th>Active</th><th>Last Update</th></tr></thead><tbody>${rows}</tbody></table>`;
+            }
+        }
+
+        if (window.lucide) {
+            lucide.createIcons();
+        }
+    } catch (error) {
+        if (trackingTable) trackingTable.innerHTML = '<div class="empty-state"><p>Unable to load tracking data</p></div>';
+        if (riderSummary) riderSummary.innerHTML = '<div class="empty-state"><p>Unable to load rider summary</p></div>';
+        console.error(error);
+    }
+}
+
+if (adminSectionTracking) {
+    loadAdminTracking();
+    setInterval(loadAdminTracking, 30000);
+}
+
+async function loadAdminTables() {
+    const tablesList = document.getElementById('adminTablesList');
+    if (!tablesList) return;
+
+    try {
+        const response = await fetch('/API/v1/tables/index.php');
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Unable to load tables');
+        const data = result.data || result;
+        const tables = Array.isArray(data.tables) ? data.tables : [];
+
+        if (tables.length === 0) {
+            tablesList.innerHTML = '<div class="empty-state"><i data-lucide="table"></i><h3>No tables</h3><p>Add your first table using the form.</p></div>';
+        } else {
+            const rows = tables.map(table => `
+                <tr>
+                    <td>${table.id}</td>
+                    <td>${sanitizeHtml(table.name)}</td>
+                    <td><span class="status-badge ${table.status}">${table.status}</span></td>
+                    <td>${new Date(table.created_at).toLocaleDateString()}</td>
+                </tr>
+            `).join('');
+            tablesList.innerHTML = `<table class="admin-table"><thead><tr><th>Number</th><th>Name</th><th>Status</th><th>Created</th></tr></thead><tbody>${rows}</tbody></table>`;
+        }
+
+        if (window.lucide) {
+            lucide.createIcons();
+        }
+    } catch (error) {
+        tablesList.innerHTML = '<div class="empty-state"><p>Unable to load tables</p></div>';
+        console.error(error);
+    }
+}
+
+async function handleAdminAddTable(event) {
+    event.preventDefault();
+    const adminAddTableForm = document.getElementById('adminAddTableForm');
+    const adminTableStatus = document.getElementById('adminTableStatus');
+    if (!adminAddTableForm) return;
+
+    const formData = new FormData(adminAddTableForm);
+    const tableNumber = formData.get('table_number');
+    const tableName = formData.get('table_name');
+
+    const payload = {
+        action: 'create',
+        csrf_token: getCsrfToken(),
+    };
+
+    if (tableNumber && tableNumber.trim() !== '') {
+        payload.id = Number(tableNumber);
+    }
+    payload.name = tableName || '';
+
+    try {
+        const response = await fetch('/API/v1/tables/index.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Unable to add table');
+        }
+        if (adminTableStatus) {
+            adminTableStatus.textContent = 'Table added successfully.';
+            adminTableStatus.className = 'form-status success';
+        }
+        adminAddTableForm.reset();
+        await loadAdminTables();
+    } catch (error) {
+        if (adminTableStatus) {
+            adminTableStatus.textContent = error.message;
+            adminTableStatus.className = 'form-status error';
+        }
+        console.error(error);
+    }
+}
+
+const adminAddTableForm = document.getElementById('adminAddTableForm');
+if (adminAddTableForm) {
+    adminAddTableForm.addEventListener('submit', handleAdminAddTable);
+}
+
+if (adminSectionTables) {
+    loadAdminTables();
+}
+
 registerFirebaseWebPush().catch((error) => console.warn('Firebase web push was not registered', error));
