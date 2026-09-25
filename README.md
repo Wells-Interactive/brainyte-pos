@@ -353,6 +353,6 @@ Brainyte Restaurant POS - Current Version 2.2 Stable
 
 ---
 
-Made by **Brainyte**
+Developed by **Brainyte** of Wells Interactive
 
 </div>

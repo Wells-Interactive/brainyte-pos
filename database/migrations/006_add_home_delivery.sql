@@ -5,6 +5,7 @@ ALTER TABLE `users` MODIFY `role` ENUM('waiter','kitchen','bar','manager','super
 CREATE TABLE IF NOT EXISTS `customer_profiles` (
     `user_id` INT PRIMARY KEY,
     `phone_number` VARCHAR(30) NOT NULL,
+    `address` TEXT DEFAULT NULL,
     `email_verified_at` DATETIME DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     `updated_at` DATETIME NOT NULL,
