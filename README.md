@@ -353,6 +353,8 @@ Brainyte Restaurant POS - Current Version 2.2 Stable
 
 ---
 
-Developed by **Brainyte** of Wells Interactive
+Developed by **Brainyte** of Wells Interactive 
+Email: wellsintltd@gmail.com
+website: www.wellsint.site
 
 </div>
