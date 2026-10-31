@@ -78,13 +78,14 @@ if ($method === 'POST') {
         'delivery_base_price',
         'delivery_per_km_rate',
         'delivery_max_distance',
+        'demo_mode_enabled',
     ];
 
     if (!in_array($settingKey, $allowedKeys, true)) {
         json_response(['error' => 'Invalid setting key'], 400);
     }
 
-    if (in_array($settingKey, ['direct_printing', 'home_delivery_enabled'], true) && !in_array($settingValue, ['0', '1'], true)) {
+    if (in_array($settingKey, ['direct_printing', 'home_delivery_enabled', 'demo_mode_enabled'], true) && !in_array($settingValue, ['0', '1'], true)) {
         json_response(['error' => 'Setting value must be 0 or 1'], 400);
     }
 
@@ -98,6 +99,79 @@ if ($method === 'POST') {
 
     $now = date('Y-m-d H:i:s');
     $pdo = get_db();
+
+    if ($settingKey === 'demo_mode_enabled') {
+        // Demo access is an owner-level decision. The demo user deliberately
+        // retains the normal owner role for existing web/Flutter navigation.
+        require_admin();
+        $password = (string)($body['demo_owner_password'] ?? '');
+
+        $pdo->beginTransaction();
+        try {
+            $demoUserStmt = $pdo->query('SELECT id, email FROM users WHERE is_demo = 1 LIMIT 1');
+            $demoUser = $demoUserStmt->fetch();
+
+            if ($settingValue === '1' && !$demoUser) {
+                if (strlen($password) < 12) {
+                    throw new InvalidArgumentException('Choose a demo owner password of at least 12 characters.');
+                }
+
+                $email = 'demo.owner@brainyte.local';
+                $emailCheck = $pdo->prepare('SELECT id FROM users WHERE email = :email LIMIT 1');
+                $emailCheck->execute([':email' => $email]);
+                if ($emailCheck->fetch()) {
+                    throw new InvalidArgumentException('The reserved demo owner email is already in use.');
+                }
+
+                $create = $pdo->prepare(
+                    'INSERT INTO users (name, email, password_hash, role, is_demo, created_at)
+                     VALUES (:name, :email, :password_hash, :role, 1, :created_at)'
+                );
+                $create->execute([
+                    ':name' => 'Brainyte Demo Owner',
+                    ':email' => $email,
+                    ':password_hash' => password_hash($password, PASSWORD_BCRYPT),
+                    ':role' => 'owner',
+                    ':created_at' => $now,
+                ]);
+                $demoUser = ['id' => (int)$pdo->lastInsertId(), 'email' => $email];
+            } elseif ($settingValue === '1' && $password !== '') {
+                if (strlen($password) < 12) {
+                    throw new InvalidArgumentException('Choose a demo owner password of at least 12 characters.');
+                }
+                $reset = $pdo->prepare('UPDATE users SET password_hash = :password_hash WHERE id = :id AND is_demo = 1');
+                $reset->execute([
+                    ':password_hash' => password_hash($password, PASSWORD_BCRYPT),
+                    ':id' => $demoUser['id'],
+                ]);
+            }
+
+            $stmt = $pdo->prepare('INSERT INTO settings (setting_key, setting_value, updated_at) VALUES (:key, :value, :updated_at) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = VALUES(updated_at)');
+            $stmt->execute([':key' => $settingKey, ':value' => $settingValue, ':updated_at' => $now]);
+
+            if ($settingValue === '0') {
+                $pdo->exec('UPDATE auth_tokens SET revoked = 1 WHERE user_id IN (SELECT id FROM users WHERE is_demo = 1)');
+            }
+
+            $pdo->commit();
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            json_response(['error' => $exception->getMessage()], 422);
+        }
+
+        json_response([
+            'success' => true,
+            'data' => [
+                'key' => $settingKey,
+                'value' => $settingValue,
+                'updated_at' => $now,
+                'demo_owner_email' => $demoUser['email'] ?? 'demo.owner@brainyte.local',
+            ],
+        ]);
+    }
+
     $stmt = $pdo->prepare('INSERT INTO settings (setting_key, setting_value, updated_at) VALUES (:key, :value, :updated_at) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = VALUES(updated_at)');
     $stmt->execute([':key' => $settingKey, ':value' => $settingValue, ':updated_at' => $now]);
 

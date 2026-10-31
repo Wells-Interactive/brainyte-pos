@@ -197,6 +197,36 @@ function require_login(): void
 }
 
 /**
+ * Demo owners may inspect the existing POS but must never change operational
+ * records.  This guard deliberately lives beside authentication so browser
+ * and Bearer-token clients receive the same protection.
+ */
+function deny_demo_write(array $user): void
+{
+    $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+    if (!empty($user['is_demo']) && !in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)) {
+        json_response(['error' => 'Demo mode is read-only. Sign in with an owner account to make changes.'], 403);
+    }
+}
+
+/** Return whether demo sign-in is currently enabled without treating a missing
+ * setting (for an older installation) as enabled. */
+function is_demo_mode_enabled(PDO $pdo): bool
+{
+    $stmt = $pdo->prepare('SELECT setting_value FROM settings WHERE setting_key = :key LIMIT 1');
+    $stmt->execute([':key' => 'demo_mode_enabled']);
+    return (string)$stmt->fetchColumn() === '1';
+}
+
+/** Prevent a disabled demo account from using protected API resources. */
+function require_enabled_demo_mode(array $user): void
+{
+    if (!empty($user['is_demo']) && !is_demo_mode_enabled(get_db())) {
+        json_response(['error' => 'Demo mode is currently disabled'], 403);
+    }
+}
+
+/**
  * Require admin or owner role.
  */
 function require_admin(): void
@@ -209,6 +239,7 @@ function require_admin(): void
         http_response_code(403);
         json_response(['error' => 'Forbidden'], 403);
     }
+    deny_demo_write($_SESSION['user']);
 }
 
 /**
@@ -224,6 +255,7 @@ function require_manager(): void
         http_response_code(403);
         json_response(['error' => 'Forbidden'], 403);
     }
+    deny_demo_write($_SESSION['user']);
 }
 
 /**
@@ -381,7 +413,7 @@ function _ensure_token_column(PDO $pdo, string $table, string $column, string $d
 function validate_access_token(PDO $pdo, string $token): ?array
 {
     $stmt = $pdo->prepare(
-        'SELECT u.id, u.name, u.email, u.role, a.id AS token_id
+        'SELECT u.id, u.name, u.email, u.role, u.is_demo, a.id AS token_id
          FROM auth_tokens a
          JOIN users u ON u.id = a.user_id
          WHERE a.token = :token AND a.revoked = 0 AND a.expires_at > :now
@@ -403,6 +435,7 @@ function validate_access_token(PDO $pdo, string $token): ?array
         'name' => $row['name'],
         'email' => $row['email'],
         'role' => $row['role'],
+        'is_demo' => (bool)($row['is_demo'] ?? false),
         'token_id' => (int)$row['token_id'],
     ];
 }
@@ -416,7 +449,7 @@ function validate_access_token(PDO $pdo, string $token): ?array
 function validate_refresh_token(PDO $pdo, string $refreshToken, string $deviceName = ''): ?array
 {
     $stmt = $pdo->prepare(
-        'SELECT a.id AS token_id, a.user_id, u.id, u.name, u.email, u.role, a.device_name
+        'SELECT a.id AS token_id, a.user_id, u.id, u.name, u.email, u.role, u.is_demo, a.device_name
          FROM auth_tokens a
          JOIN users u ON u.id = a.user_id
          WHERE a.refresh_token = :refresh_token 
@@ -447,6 +480,7 @@ function validate_refresh_token(PDO $pdo, string $refreshToken, string $deviceNa
             'name' => $row['name'],
             'email' => $row['email'],
             'role' => $row['role'],
+            'is_demo' => (bool)($row['is_demo'] ?? false),
         ],
         'tokens' => $tokens,
     ];
@@ -480,7 +514,7 @@ function generate_auth_token(PDO $pdo, int $userId, int $daysValid = 365): strin
 function validate_auth_token(PDO $pdo, string $token): ?array
 {
     $stmt = $pdo->prepare(
-        'SELECT u.id, u.name, u.email, u.role, a.expires_at
+        'SELECT u.id, u.name, u.email, u.role, u.is_demo, a.expires_at
          FROM auth_tokens a
          JOIN users u ON u.id = a.user_id
          WHERE a.token = :token AND a.revoked = 0 AND a.expires_at > :now
@@ -594,6 +628,7 @@ function get_auth_user(): ?array
             'id' => $userId,
             'name' => get_session_username(),
             'role' => get_session_role(),
+            'is_demo' => (bool)($_SESSION['user']['is_demo'] ?? false),
             'auth_type' => 'session',
         ];
     }
@@ -610,6 +645,7 @@ function get_auth_user(): ?array
                     'name' => $user['name'],
                     'email' => $user['email'],
                     'role' => $user['role'],
+                    'is_demo' => (bool)($user['is_demo'] ?? false),
                     'auth_type' => 'bearer',
                 ];
             }
@@ -631,6 +667,8 @@ function require_auth(): array
         http_response_code(401);
         json_response(['error' => 'Authentication required'], 401);
     }
+    require_enabled_demo_mode($user);
+    deny_demo_write($user);
     return $user;
 }
 
@@ -818,7 +856,22 @@ function dispatch_firebase_notification(PDO $pdo, string $targetRole, ?int $targ
         $stmt = $pdo->prepare($sql); $stmt->execute($params); $tokens = $stmt->fetchAll(PDO::FETCH_COLUMN);
         $sent = false;
         foreach ($tokens as $token) {
-            $payload = json_encode(['message' => ['token' => $token, 'notification' => ['title' => $title, 'body' => $body], 'data' => ['reference_type' => (string)$referenceType, 'reference_id' => (string)$referenceId]]], JSON_THROW_ON_ERROR);
+            // Data-only FCM payload: the app creates the loud local alert.
+            $payload = json_encode(['message' => [
+                'token' => $token,
+                'data' => [
+                    'title' => $title,
+                    'body' => $body,
+                    'event_type' => (string)$referenceType,
+                    'reference_type' => (string)$referenceType,
+                    'reference_id' => (string)$referenceId,
+                ],
+                'android' => ['priority' => 'high'],
+                'apns' => [
+                    'headers' => ['apns-push-type' => 'background', 'apns-priority' => '5'],
+                    'payload' => ['aps' => ['content-available' => 1]],
+                ],
+            ]], JSON_THROW_ON_ERROR);
             $curl = curl_init('https://fcm.googleapis.com/v1/projects/' . rawurlencode($service['project_id']) . '/messages:send');
             curl_setopt_array($curl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $payload, CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $accessToken, 'Content-Type: application/json'], CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 8]);
             curl_exec($curl); $code = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE); curl_close($curl); $sent = $sent || ($code >= 200 && $code < 300);

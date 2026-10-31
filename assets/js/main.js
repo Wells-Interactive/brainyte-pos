@@ -662,6 +662,10 @@ const directPrintingToggle = document.getElementById('directPrintingToggle');
 const directPrintingStatus = document.getElementById('directPrintingStatus');
 const homeDeliveryToggle = document.getElementById('homeDeliveryToggle');
 const homeDeliveryStatus = document.getElementById('homeDeliveryStatus');
+const demoModeToggle = document.getElementById('demoModeToggle');
+const demoModeStatus = document.getElementById('demoModeStatus');
+const demoModeToggle = document.getElementById('demoModeToggle');
+const demoModeStatus = document.getElementById('demoModeStatus');
 
 async function loadDirectPrintingSetting() {
     if (!directPrintingToggle) return;
@@ -739,6 +743,52 @@ async function toggleHomeDelivery() {
 if (homeDeliveryToggle) {
     loadHomeDeliverySetting(); homeDeliveryToggle.addEventListener('click', toggleHomeDelivery);
     homeDeliveryToggle.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleHomeDelivery(); } });
+}
+
+async function loadDemoModeSetting() {
+    if (!demoModeToggle) return;
+    try {
+        const response = await fetch('/API/Settings/index.php');
+        const result = await response.json();
+        const data = result.data || result;
+        const enabled = data.settings?.demo_mode_enabled === '1';
+        demoModeToggle.classList.toggle('active', enabled);
+        if (demoModeStatus) demoModeStatus.textContent = enabled ? 'Enabled' : 'Disabled';
+    } catch (error) { console.error('Failed to load demo mode setting', error); }
+}
+
+async function toggleDemoMode() {
+    if (!demoModeToggle) return;
+    const enabling = !demoModeToggle.classList.contains('active');
+    let demoOwnerPassword = '';
+    if (enabling) {
+        demoOwnerPassword = window.prompt('Set a password for demo.owner@brainyte.local (minimum 12 characters).') || '';
+        if (demoOwnerPassword.length < 12) {
+            window.alert('Demo mode was not enabled. A password of at least 12 characters is required.');
+            return;
+        }
+    }
+    try {
+        const response = await fetch('/API/Settings/index.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: 'demo_mode_enabled', value: enabling ? '1' : '0', demo_owner_password: demoOwnerPassword, csrf_token: getCsrfToken() }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Unable to update demo mode');
+        demoModeToggle.classList.toggle('active', enabling);
+        if (demoModeStatus) demoModeStatus.textContent = enabling ? 'Enabled' : 'Disabled';
+        if (enabling) window.alert(`Demo mode enabled. Sign in on web or Flutter with ${result.data?.demo_owner_email || 'demo.owner@brainyte.local'} and the password you chose.`);
+    } catch (error) {
+        console.error('Failed to toggle demo mode', error);
+        window.alert(error.message || 'Unable to update demo mode.');
+    }
+}
+
+if (demoModeToggle) {
+    loadDemoModeSetting();
+    demoModeToggle.addEventListener('click', toggleDemoMode);
+    demoModeToggle.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleDemoMode(); } });
 }
 
 async function loadAdminTracking() {

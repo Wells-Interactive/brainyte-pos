@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     `email` VARCHAR(120) NOT NULL UNIQUE,
     `password_hash` VARCHAR(255) NOT NULL,
     `role` ENUM('waiter', 'kitchen', 'bar', 'manager', 'supervisor', 'admin', 'owner', 'customer', 'rider') NOT NULL,
+    `is_demo` TINYINT(1) NOT NULL DEFAULT 0,
     `created_at` DATETIME NOT NULL,
     INDEX `idx_users_role` (`role`),
     INDEX `idx_users_email` (`email`)
@@ -407,4 +408,5 @@ INSERT IGNORE INTO `settings` (`setting_key`, `setting_value`, `updated_at`) VAL
 ('printer_type', 'thermal', NOW()),
 ('footer_text', 'Powered by Brainyte', NOW()),
 ('direct_printing', '0', NOW()),
-('home_delivery_enabled', '0', NOW());
+('home_delivery_enabled', '0', NOW()),
+('demo_mode_enabled', '0', NOW());

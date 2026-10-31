@@ -37,7 +37,7 @@ if ($action === 'add_user') {
     $password = (string)($body['password'] ?? '');
     $role = trim((string)($body['role'] ?? ''));
 
-    if ($name === '' || $email === '' || $password === '' || !in_array($role, ['waiter', 'kitchen', 'bar', 'manager', 'supervisor', 'admin', 'rider'], true)) {
+    if ($name === '' || $email === '' || $password === '' || !in_array($role, ['waiter', 'kitchen', 'bar', 'manager', 'supervisor', 'admin', 'owner', 'customer', 'rider'], true)) {
         json_response(['error' => 'Name, email, password and valid role are required'], 400);
     }
 
@@ -99,6 +99,11 @@ if (empty($user)) {
     json_response(['error' => 'Invalid credentials'], 401);
 }
 
+if (!empty($user['is_demo']) && !is_demo_mode_enabled($pdo)) {
+    $rateLimiter->recordLoginAttempt($clientIp . '|' . $email, false);
+    json_response(['error' => 'Demo mode is currently disabled'], 403);
+}
+
 // Successful login
 $rateLimiter->recordLoginAttempt($clientIp . '|' . $email, true);
 
@@ -142,6 +147,7 @@ $response = [
             'name' => $user['name'],
             'email' => $user['email'],
             'role' => $user['role'],
+            'is_demo' => (bool)$user['is_demo'],
         ],
         'csrf_token' => $csrfToken,
         'redirect' => $redirectMap[$user['role']] ?? '/index.php',

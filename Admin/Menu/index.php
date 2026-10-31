@@ -1782,20 +1782,52 @@ $csrf_token = generate_csrf_token();
 
                         <div class="toggle-container">
 
+                            <span class="toggle-label">Accept Delivery</span>
+
+                            <div id="homeDeliveryToggle" class="toggle-switch" role="button" tabindex="0" aria-label="Toggle home delivery"></div>
+
+                            <span id="homeDeliveryStatus" class="toggle-status">Disabled</span>
+
+                        </div>
+
+                    </div>
+
+                </article>
+
+
+                <!-- DEMO MODE -->
+
+                <article class="admin-panel setting-card">
+
+                    <div class="setting-card-icon">
+                        <i data-lucide="flask-conical"></i>
+                    </div>
+
+                    <div class="setting-card-content">
+
+                        <h2>Demo Mode</h2>
+
+                        <p>
+                            Create a dedicated read-only demo owner for web and
+                            Flutter. The account can view existing records but cannot change them.
+                        </p>
+
+                        <div class="toggle-container">
+
                             <span class="toggle-label">
-                                Accept Delivery
+                                Demo Mode
                             </span>
 
                             <div
-                                id="homeDeliveryToggle"
+                                id="demoModeToggle"
                                 class="toggle-switch"
                                 role="button"
                                 tabindex="0"
-                                aria-label="Toggle home delivery"
+                                aria-label="Toggle demo mode"
                             ></div>
 
                             <span
-                                id="homeDeliveryStatus"
+                                id="demoModeStatus"
                                 class="toggle-status"
                             >
                                 Disabled

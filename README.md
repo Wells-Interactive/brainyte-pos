@@ -13,6 +13,7 @@
 ![MySQL](https://img.shields.io/badge/Database-MySQL-orange)
 ![License](https://img.shields.io/badge/license-Commercial-red)
 
+
 **Designed & Developed by Brainyte**
 
 https://linktr.ee/wellsinteractive
@@ -25,7 +26,6 @@ https://linktr.ee/wellsinteractive
 
 Brainyte Restaurant POS is a modern restaurant ordering system built specifically for Nigerian restaurants, bars, lounges and hotels.
 The system focuses on speed, simplicity and real-time communication between waiters, the kitchen and the bar.
-Unlike traditional POS systems filled with unnecessary modules, Brainyte Restaurant POS is designed around fast order taking. Orders from Waiter to Kitchen is instantenous, more like in milliseconds.
 
 ---
 
@@ -39,28 +39,26 @@ Unlike traditional POS systems filled with unnecessary modules, Brainyte Restaur
 
 
 | Admin Dashboard
-<img src="assets/images/admin_dashboard.png" width="900">
+<img src="assets/images/admin_dashboard.png" width="900"> 
+<img src="assets/images/tracking.png" width="900"> 
 
 
 </div>
 
-# Architecture
- 
-                BRAINYTE POS BACKEND
-                 PHP + MySQL + REST API
-                         │
-          ┌──────────────┼──────────────┐
-          │              │              │
-          ▼              ▼              ▼
-     Admin Web       Flutter App     REST API
-     Browser         Android/iOS     Authentication
-          │              │              │
-          │       ┌──────┴──────┐       │
-          │       │             │       │
-          │    Waiter       Kitchen/Bar │
-          │       │             │       │
-          └───────┴─────────────┴───────┘
+## 🌐 Live Demo
+
+Experience Brainyte POS:
+
+[🚀 Launch Live Demo](https://brainytepos.is-great.net)
+
+
 # ✨ Features
+##  Demo mode
+✅ Owner-only Demo Mode toggle restored in the existing admin Settings UI.
+✅ Demo mode Enables prompts for a non-hardcoded password and creates demo.owner@brainyte.local.
+✅ Demo owner uses the existing owner role.
+✅ Disabling demo mode blocks new demo sign-ins and revokes demo token sessions.
+
 
 ## 🔐 Authentication
 ✅ Login System
@@ -135,38 +133,6 @@ All Nigerian food menu but can be customized for other countries.
 
 ---
 
-# ⚡ API
-
-REST API
-
-- Login
-- Menu
-- Orders
-- Status
-- Live Events
-- Inventory
-- Inventory Alerts
-- Reports
-- Notifications
-- Settings
-- Print Jobs
-- Operations
-- Suppliers
-- Stock Receiving
-- Order Cancellation
-- Push Notification Subscription
-- Table Close Evidence
-- Bearer Authentication
-- Token Refresh
-- Token Revocation
----
-
-# 💵 Currency
-
-✔ Nigerian Naira (₦)
-
----
-
 
 # 🧾 VAT
 
@@ -179,40 +145,6 @@ VAT Rate
 ```
 
 (The VAT engine remains available internally and can easily be re-enabled.)
-
----
-
-# 🎯 Current Status
-
-| Module | Status |
-|---------|--------|
-| Login | ✅ Complete |
-| Waiter | ✅ Complete |
-| Admin | ✅ Complete |
-| Owner | ✅ Complete |
-| Manager | ✅ Complete |
-| Tables | ✅ Complete |
-| Menu | ✅ Complete |
-| Order Summary | ✅ Complete |
-| Confirmation Dialog | ✅ Complete |
-| Customer Instructions | ✅ Complete |
-| Kitchen Dashboard | ✅ Complete |
-| Bar Dashboard | ✅ Complete |
-| Branding | ✅ Complete |
-| Responsive Layout | ✅ Complete |
-| API | ✅ Complete |
-| Inventory Management | ✅ Complete
-| Inventory Alerts	| ✅ Complete
-| Stock Movement History | ✅ Complete
-| Automatic Stock Deduction |	✅ Complete
-| Suppliers / Stock Receiving	 | ✅ Complete
-| Push Notification Support	| ✅ Complete
-| Settings Management	| ✅ Complete
-| Direct Printing Support	| ✅ Complete
-
-
-
-
 
 ---
 
@@ -267,6 +199,8 @@ Planned Features
 - Offline Mode
 - Live Kitchen Updates
 - Live Bar Updates
+
+**Status:** On-going
 
 ---
 

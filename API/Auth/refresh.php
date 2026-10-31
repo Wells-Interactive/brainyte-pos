@@ -60,6 +60,10 @@ if ($result === null) {
     json_response(['error' => 'Invalid or expired refresh token'], 401);
 }
 
+if (!empty($result['user']['is_demo']) && !is_demo_mode_enabled($pdo)) {
+    json_response(['error' => 'Demo mode is currently disabled'], 403);
+}
+
 json_response([
     'success' => true,
     'data' => [
