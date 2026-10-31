@@ -64,6 +64,27 @@ function ensure_user_role_enum(PDO $pdo): void
     if (stripos($type, 'customer') === false || stripos($type, 'rider') === false) {
         $pdo->exec("ALTER TABLE users MODIFY role ENUM('waiter','kitchen','bar','manager','supervisor','admin','owner','customer','rider') NOT NULL");
     }
+    // Add is_demo column if missing
+    $stmt2 = $pdo->query("SHOW COLUMNS FROM users LIKE 'is_demo'");
+    if (!$stmt2->fetch()) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN is_demo TINYINT(1) NOT NULL DEFAULT 0 AFTER role");
+    }
+
+    // Ensure settings exist
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS settings (setting_key VARCHAR(50) PRIMARY KEY, setting_value TEXT NOT NULL, updated_at DATETIME NOT NULL) ENGINE=InnoDB");
+        $defaults = [
+            ['demo_mode_enabled', '0'],
+            ['direct_printing', '0'],
+            ['home_delivery_enabled', '0'],
+        ];
+        foreach ($defaults as $d) {
+            $stmt = $pdo->prepare("INSERT IGNORE INTO settings (setting_key, setting_value, updated_at) VALUES (:k, :v, :t)");
+            $stmt->execute([':k' => $d[0], ':v' => $d[1], ':t' => date('Y-m-d H:i:s')]);
+        }
+    } catch (Throwable $e) {
+        // Ignore
+    }
 }
 
 /**
@@ -96,6 +117,7 @@ function ensure_database_schema(PDO $pdo): void
         email VARCHAR(120) NOT NULL UNIQUE,
         password_hash VARCHAR(255) NOT NULL,
         role ENUM('waiter', 'kitchen', 'bar', 'manager', 'supervisor', 'admin', 'owner', 'customer', 'rider') NOT NULL,
+        is_demo TINYINT(1) NOT NULL DEFAULT 0,
         created_at DATETIME NOT NULL
     ) ENGINE=InnoDB");
 
@@ -371,6 +393,14 @@ function ensure_database_schema(PDO $pdo): void
     ensure_column($pdo, 'auth_tokens', 'device_name', 'VARCHAR(255) DEFAULT NULL');
     ensure_column($pdo, 'auth_tokens', 'refresh_expires_at', 'DATETIME DEFAULT NULL');
     ensure_user_role_enum($pdo);
+
+    $pdo->prepare(
+        'INSERT IGNORE INTO settings (setting_key, setting_value, updated_at) VALUES (:key, :value, :updated_at)'
+    )->execute([
+        ':key' => 'demo_mode_enabled',
+        ':value' => '0',
+        ':updated_at' => $now,
+    ]);
     ensure_table_status_enum($pdo);
     ensure_menu_category_enum($pdo);
     ensure_order_item_status_enum($pdo);

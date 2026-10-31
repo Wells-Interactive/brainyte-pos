@@ -28,6 +28,7 @@ class Settings
         'timezone',
         'printer_type',
         'footer_text',
+        'demo_mode_enabled',
     ];
 
     public function __construct(PDO $pdo)
@@ -65,6 +66,7 @@ class Settings
             'footer_text' => 'Powered by Brainyte',
             'direct_printing' => '0',
             'home_delivery_enabled' => '0',
+            'demo_mode_enabled' => '0',
         ];
 
         foreach ($defaults as $key => $value) {
@@ -141,6 +143,7 @@ class Settings
         switch ($key) {
             case 'direct_printing':
             case 'home_delivery_enabled':
+            case 'demo_mode_enabled':
                 return in_array($value, ['0', '1'], true) ? null : 'Must be 0 or 1';
             case 'vat_rate':
                 $vat = (float)$value;

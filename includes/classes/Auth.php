@@ -40,7 +40,7 @@ class Auth
     public function login(string $email, string $password): ?array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT id, name, email, password_hash, role FROM users WHERE email = :email LIMIT 1'
+            'SELECT id, name, email, password_hash, role, is_demo FROM users WHERE email = :email LIMIT 1'
         );
         $stmt->execute([':email' => $email]);
         $user = $stmt->fetch();
@@ -54,6 +54,7 @@ class Auth
             'name' => $user['name'],
             'email' => $user['email'],
             'role' => $user['role'],
+            'is_demo' => (bool)($user['is_demo'] ?? false),
         ];
     }
 
@@ -78,6 +79,7 @@ class Auth
             'name' => $user['name'],
             'email' => $user['email'],
             'role' => $user['role'],
+            'is_demo' => (bool)($user['is_demo'] ?? false),
         ];
 
         // Generate CSRF token
@@ -177,7 +179,7 @@ class Auth
     public function validateAccessToken(string $token): ?array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT u.id, u.name, u.email, u.role, a.id AS token_id, a.expires_at, a.refresh_expires_at
+            'SELECT u.id, u.name, u.email, u.role, u.is_demo, a.id AS token_id, a.expires_at, a.refresh_expires_at
              FROM auth_tokens a
              JOIN users u ON u.id = a.user_id
              WHERE a.token = :token AND a.revoked = 0 AND a.expires_at > :now
@@ -199,6 +201,7 @@ class Auth
             'name' => $row['name'],
             'email' => $row['email'],
             'role' => $row['role'],
+            'is_demo' => (bool)($row['is_demo'] ?? false),
             'token_id' => (int)$row['token_id'],
         ];
     }
@@ -212,7 +215,7 @@ class Auth
     public function validateRefreshToken(string $refreshToken, string $deviceName = ''): ?array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT a.id AS token_id, a.user_id, u.id, u.name, u.email, u.role, a.device_name
+            'SELECT a.id AS token_id, a.user_id, u.id, u.name, u.email, u.role, u.is_demo, a.device_name
              FROM auth_tokens a
              JOIN users u ON u.id = a.user_id
              WHERE a.refresh_token = :refresh_token 
@@ -243,6 +246,7 @@ class Auth
                 'name' => $row['name'],
                 'email' => $row['email'],
                 'role' => $row['role'],
+                'is_demo' => (bool)($row['is_demo'] ?? false),
             ],
             'tokens' => $tokens,
         ];

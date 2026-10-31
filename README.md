@@ -29,6 +29,14 @@ Unlike traditional POS systems filled with unnecessary modules, Brainyte Restaur
 
 ---
 
+## 🧪 Live Demo
+
+Users who want to explore and test Brainyte Restaurant POS can access the demo here:
+
+**Demo URL:** http://brainytepos.is-great.net
+
+---
+
 # 📱 Current Screens
 
 <div align="center">
