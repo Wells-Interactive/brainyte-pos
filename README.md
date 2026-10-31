@@ -13,6 +13,7 @@
 ![MySQL](https://img.shields.io/badge/Database-MySQL-orange)
 ![License](https://img.shields.io/badge/license-Commercial-red)
 
+
 **Designed & Developed by Brainyte**
 
 https://linktr.ee/wellsinteractive
@@ -43,6 +44,13 @@ The system focuses on speed, simplicity and real-time communication between wait
 
 
 </div>
+
+## 🌐 Live Demo
+
+Experience Brainyte POS:
+
+[🚀 Launch Live Demo](https://brainytepos.is-great.net)
+
 
 # ✨ Features
 ##  Demo mode
@@ -125,38 +133,6 @@ All Nigerian food menu but can be customized for other countries.
 
 ---
 
-# ⚡ API
-
-REST API
-
-- Login
-- Menu
-- Orders
-- Status
-- Live Events
-- Inventory
-- Inventory Alerts
-- Reports
-- Notifications
-- Settings
-- Print Jobs
-- Operations
-- Suppliers
-- Stock Receiving
-- Order Cancellation
-- Push Notification Subscription
-- Table Close Evidence
-- Bearer Authentication
-- Token Refresh
-- Token Revocation
----
-
-# 💵 Currency
-
-✔ Nigerian Naira (₦)
-
----
-
 
 # 🧾 VAT
 
@@ -223,6 +199,8 @@ Planned Features
 - Offline Mode
 - Live Kitchen Updates
 - Live Bar Updates
+
+**Status:** On-going
 
 ---
 
