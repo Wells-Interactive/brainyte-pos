@@ -6,6 +6,8 @@ const DB_NAME = 'database';
 const DB_USER = 'user';
 const DB_PASS = 'pass';
 
+require_once __DIR__ . '/demo_mode.php';
+
 /**
  * Add a column to a table if it doesn't exist.
  */
@@ -61,8 +63,8 @@ function ensure_user_role_enum(PDO $pdo): void
         return;
     }
     $type = (string)($column['Type'] ?? '');
-    if (stripos($type, 'customer') === false || stripos($type, 'rider') === false) {
-        $pdo->exec("ALTER TABLE users MODIFY role ENUM('waiter','kitchen','bar','manager','supervisor','admin','owner','customer','rider') NOT NULL");
+    if (stripos($type, 'customer') === false || stripos($type, 'rider') === false || stripos($type, 'super_admin') === false) {
+        $pdo->exec("ALTER TABLE users MODIFY role ENUM('waiter','kitchen','bar','manager','supervisor','admin','owner','customer','rider','super_admin') NOT NULL");
     }
     // Add is_demo column if missing
     $stmt2 = $pdo->query("SHOW COLUMNS FROM users LIKE 'is_demo'");
@@ -84,6 +86,93 @@ function ensure_user_role_enum(PDO $pdo): void
         }
     } catch (Throwable $e) {
         // Ignore
+    }
+}
+
+/**
+ * Add the shared restaurant and chain directory while preserving the original
+ * single-restaurant installation as its first restaurant.
+ */
+function ensure_restaurant_schema(PDO $pdo): void
+{
+    $pdo->exec("CREATE TABLE IF NOT EXISTS restaurant_chains (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(150) NOT NULL,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS restaurants (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        chain_id INT DEFAULT NULL,
+        name VARCHAR(150) NOT NULL,
+        address TEXT DEFAULT NULL,
+        phone_number VARCHAR(30) DEFAULT NULL,
+        email VARCHAR(120) DEFAULT NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        archived_at DATETIME DEFAULT NULL,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL,
+        INDEX idx_restaurants_chain (chain_id),
+        INDEX idx_restaurants_active (is_active, archived_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $scopedTables = [
+        'users', 'restaurant_tables', 'menu_items', 'orders', 'order_items',
+        'order_status_history', 'notifications', 'print_jobs', 'delivery_orders',
+        'delivery_tracking', 'audit_logs', 'inventory_items', 'inventory_movements',
+        'suppliers', 'supply_receipts', 'supply_receipt_items', 'table_close_evidence',
+        'order_cancellation_requests',
+    ];
+    foreach ($scopedTables as $table) {
+        ensure_column($pdo, $table, 'restaurant_id', 'INT DEFAULT NULL');
+    }
+    ensure_column($pdo, 'menu_items', 'chain_id', 'INT DEFAULT NULL');
+
+    $restaurantCount = (int)$pdo->query('SELECT COUNT(*) FROM restaurants')->fetchColumn();
+    if ($restaurantCount === 0) {
+        $name = 'Restaurant POS';
+        try {
+            $setting = $pdo->query("SELECT setting_value FROM settings WHERE setting_key = 'restaurant_name' LIMIT 1")->fetchColumn();
+            if (is_string($setting) && trim($setting) !== '') {
+                $name = trim($setting);
+            }
+        } catch (Throwable $e) {
+            // The default name is used until settings are initialized.
+        }
+        $stmt = $pdo->prepare(
+            'INSERT INTO restaurants (name, is_active, created_at, updated_at) VALUES (:name, 1, :created_at, :updated_at)'
+        );
+        $stmt->execute([':name' => $name, ':created_at' => date('Y-m-d H:i:s'), ':updated_at' => date('Y-m-d H:i:s')]);
+    }
+
+    $backfilled = $pdo->query(
+        "SELECT setting_value FROM settings WHERE setting_key = 'restaurant_data_backfilled' LIMIT 1"
+    )->fetchColumn();
+    $defaultRestaurantId = (int)$pdo->query('SELECT id FROM restaurants ORDER BY id LIMIT 1')->fetchColumn();
+    if ($defaultRestaurantId > 0 && $backfilled !== '1') {
+        foreach ($scopedTables as $table) {
+            $pdo->exec("UPDATE `{$table}` SET restaurant_id = {$defaultRestaurantId} WHERE restaurant_id IS NULL");
+        }
+        $stmt = $pdo->prepare(
+            "INSERT INTO settings (setting_key, setting_value, updated_at)
+             VALUES ('restaurant_data_backfilled', '1', :updated_at)
+             ON DUPLICATE KEY UPDATE setting_value = '1', updated_at = VALUES(updated_at)"
+        );
+        $stmt->execute([':updated_at' => date('Y-m-d H:i:s')]);
+    }
+
+    $indexes = $pdo->query("SHOW INDEX FROM inventory_items")->fetchAll();
+    $hasLegacyInventoryIndex = false;
+    $hasRestaurantInventoryIndex = false;
+    foreach ($indexes as $index) {
+        $hasLegacyInventoryIndex = $hasLegacyInventoryIndex || $index['Key_name'] === 'uq_inventory_menu_item';
+        $hasRestaurantInventoryIndex = $hasRestaurantInventoryIndex || $index['Key_name'] === 'uq_inventory_menu_restaurant';
+    }
+    if ($hasLegacyInventoryIndex) {
+        $pdo->exec('ALTER TABLE inventory_items DROP INDEX uq_inventory_menu_item');
+    }
+    if (!$hasRestaurantInventoryIndex) {
+        $pdo->exec('ALTER TABLE inventory_items ADD UNIQUE KEY uq_inventory_menu_restaurant (menu_item_id, restaurant_id)');
     }
 }
 
@@ -116,7 +205,7 @@ function ensure_database_schema(PDO $pdo): void
         name VARCHAR(80) NOT NULL,
         email VARCHAR(120) NOT NULL UNIQUE,
         password_hash VARCHAR(255) NOT NULL,
-        role ENUM('waiter', 'kitchen', 'bar', 'manager', 'supervisor', 'admin', 'owner', 'customer', 'rider') NOT NULL,
+        role ENUM('waiter', 'kitchen', 'bar', 'manager', 'supervisor', 'admin', 'owner', 'customer', 'rider', 'super_admin') NOT NULL,
         is_demo TINYINT(1) NOT NULL DEFAULT 0,
         created_at DATETIME NOT NULL
     ) ENGINE=InnoDB");
@@ -337,9 +426,10 @@ function ensure_database_schema(PDO $pdo): void
         current_stock DECIMAL(9,2) NOT NULL DEFAULT 0.00,
         min_stock_level DECIMAL(9,2) NOT NULL DEFAULT 0.00,
         unit VARCHAR(30) NOT NULL DEFAULT 'pieces',
+        restaurant_id INT DEFAULT NULL,
         created_at DATETIME NOT NULL,
         updated_at DATETIME NOT NULL,
-        UNIQUE KEY uq_inventory_menu_item (menu_item_id),
+        UNIQUE KEY uq_inventory_menu_restaurant (menu_item_id, restaurant_id),
         INDEX idx_inventory_stock_level (current_stock),
         INDEX idx_inventory_min_stock (min_stock_level),
         FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE CASCADE
@@ -375,6 +465,7 @@ function ensure_database_schema(PDO $pdo): void
     $pdo->exec("CREATE TABLE IF NOT EXISTS password_reset_codes (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, code_hash VARCHAR(255) NOT NULL, expires_at DATETIME NOT NULL, consumed_at DATETIME DEFAULT NULL, created_at DATETIME NOT NULL, INDEX idx_prc_user_expires (user_id, expires_at), FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci");
     $pdo->exec("CREATE TABLE IF NOT EXISTS push_subscriptions (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, platform ENUM('web','android','ios') NOT NULL, token VARCHAR(512) NOT NULL, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL, UNIQUE KEY uq_push_subscription_token (token), INDEX idx_push_user_platform (user_id, platform), FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci");
 
+    ensure_demo_scope_schema($pdo);
 
     // Ensure backward-compatible columns
     ensure_column($pdo, 'menu_items', 'available', 'TINYINT(1) NOT NULL DEFAULT 1');
@@ -393,6 +484,7 @@ function ensure_database_schema(PDO $pdo): void
     ensure_column($pdo, 'auth_tokens', 'device_name', 'VARCHAR(255) DEFAULT NULL');
     ensure_column($pdo, 'auth_tokens', 'refresh_expires_at', 'DATETIME DEFAULT NULL');
     ensure_user_role_enum($pdo);
+    ensure_restaurant_schema($pdo);
 
     $pdo->prepare(
         'INSERT IGNORE INTO settings (setting_key, setting_value, updated_at) VALUES (:key, :value, :updated_at)'

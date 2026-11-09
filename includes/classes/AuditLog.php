@@ -54,9 +54,23 @@ class AuditLog
         ?int $resourceId = null,
         ?string $details = null
     ): int {
+        $user = \get_auth_user();
+        $demoOwnerId = !empty($user['is_demo']) ? (int)$user['id'] : null;
+        $restaurantId = $user['restaurant_id'] ?? null;
+        if ($demoOwnerId === null && $userId !== null) {
+            $userStmt = $this->pdo->prepare('SELECT is_demo, demo_owner_id, restaurant_id FROM users WHERE id = :id LIMIT 1');
+            $userStmt->execute([':id' => $userId]);
+            $userRecord = $userStmt->fetch();
+            if ($restaurantId === null && $userRecord) {
+                $restaurantId = $userRecord['restaurant_id'];
+            }
+            if ($userRecord && (bool)$userRecord['is_demo']) {
+                $demoOwnerId = (int)($userRecord['demo_owner_id'] ?: $userId);
+            }
+        }
         $stmt = $this->pdo->prepare(
-            'INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, ip_address, user_agent, created_at)
-             VALUES (:user_id, :action, :resource_type, :resource_id, :details, :ip_address, :user_agent, :created_at)'
+            'INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, ip_address, user_agent, demo_owner_id, restaurant_id, created_at)
+             VALUES (:user_id, :action, :resource_type, :resource_id, :details, :ip_address, :user_agent, :demo_owner_id, :restaurant_id, :created_at)'
         );
         $stmt->execute([
             ':user_id' => $userId,
@@ -66,6 +80,8 @@ class AuditLog
             ':details' => $details,
             ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
             ':user_agent' => ($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'),
+            ':demo_owner_id' => $demoOwnerId,
+            ':restaurant_id' => $restaurantId,
             ':created_at' => date('Y-m-d H:i:s'),
         ]);
         return (int)$this->pdo->lastInsertId();
@@ -124,8 +140,8 @@ class AuditLog
     {
         $sql = 'SELECT al.*, u.name AS user_name
                 FROM audit_logs al
-                LEFT JOIN users u ON u.id = al.user_id
-                WHERE 1 = 1';
+                LEFT JOIN users u ON u.id = al.user_id AND ' . \demo_data_scope_sql('u') . '
+                WHERE ' . \demo_data_scope_sql('al');
         $params = [];
 
         if ($userId !== null) {
@@ -145,7 +161,7 @@ class AuditLog
     public function cleanOlderThan(int $days = 90): int
     {
         $cutoff = date('Y-m-d H:i:s', strtotime("-{$days} days"));
-        $stmt = $this->pdo->prepare('DELETE FROM audit_logs WHERE created_at < :cutoff');
+        $stmt = $this->pdo->prepare('DELETE FROM audit_logs WHERE created_at < :cutoff AND ' . \demo_data_scope_sql('audit_logs'));
         $stmt->execute([':cutoff' => $cutoff]);
         return $stmt->rowCount();
     }

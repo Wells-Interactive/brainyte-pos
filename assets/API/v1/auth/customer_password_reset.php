@@ -1,0 +1,14 @@
+<?php
+declare(strict_types=1);
+/** Password reset deliberately restricted to customer accounts. */
+require_once __DIR__ . '/../../../includes/db.php';
+require_once __DIR__ . '/../../../includes/utils.php';
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') json_response(['error'=>'Method not allowed'],405);
+try { $body=get_json_body(); } catch (JsonException $e) { json_response(['error'=>'Invalid JSON body'],400); }
+$pdo=get_db();$action=(string)($body['action']??'request');$email=strtolower(trim((string)($body['email']??'')));
+if(!filter_var($email,FILTER_VALIDATE_EMAIL))json_response(['error'=>'A valid email is required'],422);
+$stmt=$pdo->prepare("SELECT id,email FROM users WHERE email=:email AND role='customer' LIMIT 1");$stmt->execute([':email'=>$email]);$customer=$stmt->fetch();
+// Deliberately return a generic result to avoid account enumeration.
+if($action==='request') { if($customer){$code=(string)random_int(100000,999999);$now=date('Y-m-d H:i:s');$pdo->prepare('UPDATE password_reset_codes SET consumed_at=:now WHERE user_id=:id AND consumed_at IS NULL')->execute([':now'=>$now,':id'=>$customer['id']]);$pdo->prepare('INSERT INTO password_reset_codes (user_id,code_hash,expires_at,created_at) VALUES (:id,:hash,:expires,:now)')->execute([':id'=>$customer['id'],':hash'=>password_hash($code,PASSWORD_DEFAULT),':expires'=>date('Y-m-d H:i:s',strtotime('+10 minutes')),':now'=>$now]);@mail($customer['email'],'Brainyte password reset code',"Your password reset code is {$code}. It expires in 10 minutes.",'Content-Type: text/plain; charset=UTF-8');}json_response(['success'=>true,'data'=>['message'=>'If this is a customer account, a reset code has been sent.']]); }
+if($action==='confirm'){if(!$customer)json_response(['error'=>'Invalid reset request'],422);$code=trim((string)($body['code']??''));$password=(string)($body['password']??'');if(strlen($password)<8)json_response(['error'=>'Password must be at least 8 characters'],422);$q=$pdo->prepare('SELECT * FROM password_reset_codes WHERE user_id=:id AND consumed_at IS NULL ORDER BY id DESC LIMIT 1');$q->execute([':id'=>$customer['id']]);$row=$q->fetch();if(!$row||strtotime($row['expires_at'])<time()||!password_verify($code,$row['code_hash']))json_response(['error'=>'Invalid or expired reset code'],422);$now=date('Y-m-d H:i:s');$pdo->prepare('UPDATE users SET password_hash=:password WHERE id=:id')->execute([':password'=>password_hash($password,PASSWORD_DEFAULT),':id'=>$customer['id']]);$pdo->prepare('UPDATE password_reset_codes SET consumed_at=:now WHERE id=:id')->execute([':now'=>$now,':id'=>$row['id']]);$pdo->prepare('UPDATE auth_tokens SET revoked=1 WHERE user_id=:id')->execute([':id'=>$customer['id']]);json_response(['success'=>true,'data'=>['message'=>'Password reset successfully. Please sign in.']]);}
+json_response(['error'=>'Unknown action'],400);

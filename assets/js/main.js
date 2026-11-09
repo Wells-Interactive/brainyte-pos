@@ -163,6 +163,7 @@ const adminUpdatePrice = document.getElementById('adminUpdatePrice');
 const adminMenuStatus = document.getElementById('adminMenuStatus');
 const adminAddUser = document.getElementById('adminAddUser');
 const adminUserStatus = document.getElementById('adminUserStatus');
+const adminStaffList = document.getElementById('adminStaffList');
 
 const adminCategories = [
     'beer', 'malt', 'soft-drinks', 'water', 'energy-drinks', 'juice', 'spirits', 'ready-to-drink',
@@ -184,6 +185,43 @@ function fmt(val) {
     return val != null
         ? new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(val)
         : 'Ni0.00';
+}
+
+async function loadAdminStaff() {
+    if (!adminStaffList) return;
+
+    try {
+        const response = await fetch('/API/v1/admin/staff.php');
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || 'Unable to load staff accounts');
+        }
+
+        const staff = result.data?.staff;
+        if (!Array.isArray(staff)) {
+            throw new Error('The server returned an invalid staff list');
+        }
+        if (staff.length === 0) {
+            adminStaffList.innerHTML = '<p class="message">No staff accounts found.</p>';
+            return;
+        }
+
+        adminStaffList.innerHTML = `
+            <table class="admin-sales-table">
+                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Created</th></tr></thead>
+                <tbody>${staff.map(user => `
+                    <tr>
+                        <td>${sanitizeHtml(user.name)}</td>
+                        <td>${sanitizeHtml(user.email)}</td>
+                        <td>${sanitizeHtml(user.role)}</td>
+                        <td>${sanitizeHtml(user.created_at)}</td>
+                    </tr>
+                `).join('')}</tbody>
+            </table>`;
+    } catch (error) {
+        adminStaffList.textContent = `Unable to load staff accounts: ${error.message}`;
+        console.error('Failed to load staff accounts', error);
+    }
 }
 
 async function loadAdminMenuOptions() {
@@ -351,6 +389,7 @@ async function handleAdminAddUser(event) {
         }
         adminUserStatus.textContent = 'User added successfully!';
         adminAddUser.reset();
+        await loadAdminStaff();
     } catch (error) {
         adminUserStatus.textContent = error.message;
         console.error(error);
@@ -493,6 +532,7 @@ if (adminDashboard) {
     loadSettings();
     loadAdminMenuOptions();
     loadAdminStats();
+    loadAdminStaff();
     loadInventoryAlerts();
     loadStockItemOptions();
     loadInventoryAuditTrail();
@@ -664,8 +704,6 @@ const homeDeliveryToggle = document.getElementById('homeDeliveryToggle');
 const homeDeliveryStatus = document.getElementById('homeDeliveryStatus');
 const demoModeToggle = document.getElementById('demoModeToggle');
 const demoModeStatus = document.getElementById('demoModeStatus');
-const demoModeToggle = document.getElementById('demoModeToggle');
-const demoModeStatus = document.getElementById('demoModeStatus');
 
 async function loadDirectPrintingSetting() {
     if (!directPrintingToggle) return;
@@ -760,25 +798,17 @@ async function loadDemoModeSetting() {
 async function toggleDemoMode() {
     if (!demoModeToggle) return;
     const enabling = !demoModeToggle.classList.contains('active');
-    let demoOwnerPassword = '';
-    if (enabling) {
-        demoOwnerPassword = window.prompt('Set a password for demo.owner@brainyte.local (minimum 12 characters).') || '';
-        if (demoOwnerPassword.length < 12) {
-            window.alert('Demo mode was not enabled. A password of at least 12 characters is required.');
-            return;
-        }
-    }
     try {
         const response = await fetch('/API/Settings/index.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key: 'demo_mode_enabled', value: enabling ? '1' : '0', demo_owner_password: demoOwnerPassword, csrf_token: getCsrfToken() }),
+            body: JSON.stringify({ key: 'demo_mode_enabled', value: enabling ? '1' : '0', csrf_token: getCsrfToken() }),
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Unable to update demo mode');
         demoModeToggle.classList.toggle('active', enabling);
         if (demoModeStatus) demoModeStatus.textContent = enabling ? 'Enabled' : 'Disabled';
-        if (enabling) window.alert(`Demo mode enabled. Sign in on web or Flutter with ${result.data?.demo_owner_email || 'demo.owner@brainyte.local'} and the password you chose.`);
+        if (enabling) window.alert(`Demo mode enabled. Sign in on web or Flutter with ${result.data?.demo_owner_email || 'demo.owner@brainyte.local'} and password ${result.data?.demo_owner_password || 'Demo123@&'}.`);
     } catch (error) {
         console.error('Failed to toggle demo mode', error);
         window.alert(error.message || 'Unable to update demo mode.');

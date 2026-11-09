@@ -1,5 +1,9 @@
 /** Registers this signed-in browser with Firebase Cloud Messaging when configured. */
+const FIREBASE_WEB_PUSH_ENABLED = false;
+
 export async function registerFirebaseWebPush() {
+    // Keep web push paused until Firebase messaging is explicitly re-enabled.
+    if (!FIREBASE_WEB_PUSH_ENABLED) return;
     if (!window.BRAINYTE_FIREBASE_CONFIG) {
         try { await import('/assets/js/firebase-config.js'); } catch (_) { return; }
     }

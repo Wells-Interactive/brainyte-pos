@@ -3,14 +3,15 @@ declare(strict_types=1);
 /**
  * Setup Wizard - Web installation page for first-time setup.
  * 
- * This page is shown when no admin/owner user exists in the database.
+ * This page is shown until the platform Super Admin account is installed.
  * If includes/db.php is missing or the database cannot be reached,
  * a Database Configuration form is shown. On success it writes
  * includes/db.php (based on db.example.php) and reloads into the
- * wizard: Database Check → Create Admin → Complete
+ * wizard: Database Check → Install Super Admin → Complete
  */
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../includes/demo_mode.php';
 
 // ============================================================
 // Handle Database Configuration POST (writes includes/db.php)
@@ -94,6 +95,7 @@ if ($dbExists) {
     try {
         require_once __DIR__ . '/../includes/db.php';
         $pdo = get_db();
+        ensure_demo_dataset($pdo);
         $dbConnected = true;
     } catch (Throwable $e) {
         $dbConnected = false;
@@ -177,7 +179,7 @@ if ($dbConnected) {
             </div>
             <div class="step-label">
                 <span class="active" id="label-1">Database</span>
-                <span id="label-2">Admin Account</span>
+                <span id="label-2">Super Admin Account</span>
                 <span id="label-3">Complete</span>
             </div>
 
@@ -212,7 +214,7 @@ if ($dbConnected) {
                 </form>
                 <?php else: ?>
                 <h1>Database Setup</h1>
-                <p class="subtitle">Verifying database connection and running migrations.</p>
+                <p class="subtitle">Verifying the database schema and preparing the demo workspace.</p>
 
                 <div class="db-status loading" id="dbStatus">
                     <span class="status-icon">⟳</span>
@@ -225,52 +227,50 @@ if ($dbConnected) {
                 <?php endif; ?>
             </div>
 
-            <!-- Step 2: Create Admin Account -->
+            <!-- Step 2: Install platform Super Admin -->
             <div class="step-content" id="step-2">
-                <h1>Create Administrator</h1>
-                <p class="subtitle">Set up your first admin account to get started.</p>
+                <h1>Create Platform Super Admin</h1>
+                <p class="subtitle">Set up the account that manages all restaurants.</p>
 
                 <form id="setupForm" class="form-grid">
                     <label for="name">Full Name</label>
                     <input type="text" id="name" name="name" placeholder="Enter your full name" required autocomplete="name" />
 
                     <label for="email">Email Address</label>
-                    <input type="email" id="email" name="email" placeholder="admin@restaurant.com" required autocomplete="email" />
+                    <input type="email" id="email" name="email" placeholder="admin@platform.com" required autocomplete="email" />
 
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password" placeholder="Min. 8 characters" required minlength="8" autocomplete="new-password" />
+                    <label for="password">Strong password</label>
+                    <input type="password" id="password" name="password" placeholder="At least 12 characters" required minlength="12" autocomplete="new-password" />
 
                     <label for="password_confirm">Confirm Password</label>
-                    <input type="password" id="password_confirm" name="password_confirm" placeholder="Repeat password" required autocomplete="new-password" />
+                    <input type="password" id="password_confirm" name="password_confirm" placeholder="Repeat password" required minlength="12" autocomplete="new-password" />
 
-                    <label for="role">Role</label>
-                    <select id="role" name="role">
-                        <option value="admin">Administrator</option>
-                        <option value="owner">Owner</option>
-                    </select>
+                    <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="showSetupPassword" style="width:auto;"> Show passwords</label>
+                    <p class="info-msg">Use at least 12 characters with uppercase and lowercase letters, a number, and a symbol. This installs the platform Super Admin account.</p>
 
                     <div id="setupMessage" class="error-msg"></div>
 
-                    <button type="submit" id="setupSubmit">Create Admin Account</button>
+                    <button type="submit" id="setupSubmit">Create Super Admin Account</button>
                 </form>
             </div>
 
             <!-- Step 3: Complete -->
             <div class="step-content" id="step-3">
                 <h1>✓ Setup Complete!</h1>
-                <p class="subtitle">Your Restaurant POS is ready to use.</p>
+                <p class="subtitle">The platform Super Admin account is ready.</p>
 
                 <div style="text-align:center;padding:20px 0;">
                     <div style="font-size:64px;margin-bottom:16px;">🎉</div>
-                    <p style="color:#ccc;margin-bottom:8px;">Your administrator account has been created.</p>
-                    <p style="color:#888;font-size:13px;">Redirecting to login page...</p>
+                    <p style="color:#ccc;margin-bottom:8px;">Your Super Admin account has been created.</p>
+                    <p id="setupAccountInfo" style="color:#75e4ad;font-size:14px;"></p>
+                    <p style="color:#888;font-size:12px;">Your password is not stored or displayed in plain text. Use the password you chose to sign in.</p>
+                    <p style="color:#888;font-size:13px;">Redirecting to sign in...</p>
                     <div style="margin-top:16px;color:#666;font-size:12px;">
-                        <p>You can now log in and:</p>
+                        <p>After signing in, you can:</p>
                         <ul style="text-align:left;display:inline-block;color:#888;font-size:13px;line-height:1.8;">
-                            <li>Add menu items and categories</li>
-                            <li>Create user accounts (waiters, kitchen, bar)</li>
-                            <li>Manage inventory and stock levels</li>
-                            <li>Configure restaurant settings</li>
+                            <li>Add and search restaurants</li>
+                            <li>Activate, deactivate, or archive restaurants</li>
+                            <li>Link branches into restaurant chains</li>
                         </ul>
                     </div>
                 </div>
@@ -323,7 +323,7 @@ if ($dbConnected) {
                 if (response.ok) {
                     dbStatus.className = 'db-status success';
                     dbStatus.querySelector('.status-icon').textContent = '✓';
-                    dbStatus.querySelector('.status-text').textContent = '✓ Database connected successfully. Proceeding to admin account setup...';
+                    dbStatus.querySelector('.status-text').textContent = '✓ Database connected successfully. Proceeding to Super Admin account setup...';
 
                     // Also check tables
                     setTimeout(() => {
@@ -347,7 +347,13 @@ if ($dbConnected) {
 
         document.getElementById('retryDbCheck')?.addEventListener('click', checkDatabase);
 
-        // Step 2: Create admin account
+        document.getElementById('showSetupPassword')?.addEventListener('change', function() {
+            const type = this.checked ? 'text' : 'password';
+            document.getElementById('password').type = type;
+            document.getElementById('password_confirm').type = type;
+        });
+
+        // Step 2: Install platform Super Admin
         document.getElementById('setupForm')?.addEventListener('submit', async function(e) {
             e.preventDefault();
 
@@ -358,16 +364,14 @@ if ($dbConnected) {
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             const passwordConfirm = document.getElementById('password_confirm').value;
-            const role = document.getElementById('role').value;
-
             // Client-side validation
             if (!name || !email || !password) {
                 msgEl.textContent = 'All fields are required.';
                 return;
             }
 
-            if (password.length < 8) {
-                msgEl.textContent = 'Password must be at least 8 characters.';
+            if (password.length < 12 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^a-zA-Z0-9]/.test(password)) {
+                msgEl.textContent = 'Use at least 12 characters with uppercase and lowercase letters, a number, and a symbol.';
                 return;
             }
 
@@ -385,7 +389,7 @@ if ($dbConnected) {
                 const response = await fetch('/API/Setup/index.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, email, password, password_confirm: passwordConfirm, role }),
+                    body: JSON.stringify({ name, email, password, password_confirm: passwordConfirm }),
                 });
 
                 const result = await response.json();
@@ -393,20 +397,21 @@ if ($dbConnected) {
                 if (result.success) {
                     msgEl.textContent = '✓ Account created!';
                     msgEl.className = 'success-msg';
+                    document.getElementById('setupAccountInfo').textContent = `Super Admin email: ${email}`;
                     goToStep(3);
                     // Redirect to login
                     setTimeout(() => {
-                        window.location.href = '/Admin/Menu/index.php';
+                        window.location.href = '/Login/index.php';
                     }, 3000);
                 } else {
                     msgEl.textContent = result.error || 'Setup failed. Please try again.';
                     submitBtn.disabled = false;
-                    submitBtn.textContent = 'Create Admin Account';
+                    submitBtn.textContent = 'Create Super Admin Account';
                 }
             } catch (err) {
                 msgEl.textContent = 'Network error. Please check your connection.';
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Create Admin Account';
+                submitBtn.textContent = 'Create Super Admin Account';
             }
         });
 
@@ -417,4 +422,3 @@ if ($dbConnected) {
     </script>
 </body>
 </html>
-

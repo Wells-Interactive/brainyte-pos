@@ -39,13 +39,22 @@ class Auth
      */
     public function login(string $email, string $password): ?array
     {
+        $email = strtolower(trim($email));
         $stmt = $this->pdo->prepare(
-            'SELECT id, name, email, password_hash, role, is_demo FROM users WHERE email = :email LIMIT 1'
+            'SELECT u.id, u.name, u.email, u.password_hash, u.role, u.is_demo, u.restaurant_id,
+                    r.name AS restaurant_name, r.is_active AS restaurant_is_active, r.archived_at
+             FROM users u
+             LEFT JOIN restaurants r ON r.id = u.restaurant_id
+             WHERE u.email = :email LIMIT 1'
         );
         $stmt->execute([':email' => $email]);
         $user = $stmt->fetch();
 
-        if (empty($user) || !password_verify($password, $user['password_hash'])) {
+        if (
+            empty($user)
+            || !password_verify($password, $user['password_hash'])
+            || ($user['restaurant_id'] !== null && ((int)$user['restaurant_is_active'] !== 1 || $user['archived_at'] !== null))
+        ) {
             return null;
         }
 
@@ -55,6 +64,8 @@ class Auth
             'email' => $user['email'],
             'role' => $user['role'],
             'is_demo' => (bool)($user['is_demo'] ?? false),
+            'restaurant_id' => $user['restaurant_id'] === null ? null : (int)$user['restaurant_id'],
+            'restaurant_name' => $user['restaurant_name'] ?? null,
         ];
     }
 
@@ -74,12 +85,14 @@ class Auth
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['username'] = $user['name'];
         $_SESSION['role'] = $user['role'];
+        $_SESSION['restaurant_id'] = $user['restaurant_id'] ?? null;
         $_SESSION['user'] = [
             'id' => $user['id'],
             'name' => $user['name'],
             'email' => $user['email'],
             'role' => $user['role'],
             'is_demo' => (bool)($user['is_demo'] ?? false),
+            'restaurant_id' => $user['restaurant_id'] ?? null,
         ];
 
         // Generate CSRF token
@@ -179,16 +192,21 @@ class Auth
     public function validateAccessToken(string $token): ?array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT u.id, u.name, u.email, u.role, u.is_demo, a.id AS token_id, a.expires_at, a.refresh_expires_at
+            'SELECT u.id, u.name, u.email, u.role, u.is_demo, u.restaurant_id, r.name AS restaurant_name,
+                    r.is_active AS restaurant_is_active, r.archived_at, a.id AS token_id, a.expires_at, a.refresh_expires_at
              FROM auth_tokens a
              JOIN users u ON u.id = a.user_id
+             LEFT JOIN restaurants r ON r.id = u.restaurant_id
              WHERE a.token = :token AND a.revoked = 0 AND a.expires_at > :now
              LIMIT 1'
         );
         $stmt->execute([':token' => $token, ':now' => date('Y-m-d H:i:s')]);
         $row = $stmt->fetch();
 
-        if (!$row) {
+        if (
+            !$row
+            || ($row['restaurant_id'] !== null && ((int)$row['restaurant_is_active'] !== 1 || $row['archived_at'] !== null))
+        ) {
             return null;
         }
 
@@ -202,6 +220,8 @@ class Auth
             'email' => $row['email'],
             'role' => $row['role'],
             'is_demo' => (bool)($row['is_demo'] ?? false),
+            'restaurant_id' => $row['restaurant_id'] === null ? null : (int)$row['restaurant_id'],
+            'restaurant_name' => $row['restaurant_name'] ?? null,
             'token_id' => (int)$row['token_id'],
         ];
     }
@@ -215,9 +235,11 @@ class Auth
     public function validateRefreshToken(string $refreshToken, string $deviceName = ''): ?array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT a.id AS token_id, a.user_id, u.id, u.name, u.email, u.role, u.is_demo, a.device_name
+            'SELECT a.id AS token_id, a.user_id, u.id, u.name, u.email, u.role, u.is_demo, u.restaurant_id,
+                    r.name AS restaurant_name, r.is_active AS restaurant_is_active, r.archived_at, a.device_name
              FROM auth_tokens a
              JOIN users u ON u.id = a.user_id
+             LEFT JOIN restaurants r ON r.id = u.restaurant_id
              WHERE a.refresh_token = :refresh_token 
                AND a.revoked = 0 
                AND a.refresh_expires_at > :now
@@ -226,7 +248,10 @@ class Auth
         $stmt->execute([':refresh_token' => $refreshToken, ':now' => date('Y-m-d H:i:s')]);
         $row = $stmt->fetch();
 
-        if (!$row) {
+        if (
+            !$row
+            || ($row['restaurant_id'] !== null && ((int)$row['restaurant_is_active'] !== 1 || $row['archived_at'] !== null))
+        ) {
             return null;
         }
 
@@ -247,6 +272,8 @@ class Auth
                 'email' => $row['email'],
                 'role' => $row['role'],
                 'is_demo' => (bool)($row['is_demo'] ?? false),
+                'restaurant_id' => $row['restaurant_id'] === null ? null : (int)$row['restaurant_id'],
+                'restaurant_name' => $row['restaurant_name'] ?? null,
             ],
             'tokens' => $tokens,
         ];
@@ -384,6 +411,7 @@ class Auth
                 'id' => $userId,
                 'name' => $_SESSION['username'] ?? $_SESSION['user']['name'] ?? '',
                 'role' => $_SESSION['role'] ?? $_SESSION['user']['role'] ?? '',
+                'restaurant_id' => $_SESSION['restaurant_id'] ?? $_SESSION['user']['restaurant_id'] ?? null,
                 'auth_type' => 'session',
             ];
             $this->authType = 'session';
@@ -490,6 +518,9 @@ class Auth
             case 'admin':
             case 'owner':
                 header('Location: /index.php');
+                break;
+            case 'super_admin':
+                header('Location: /SuperAdmin/index.php');
                 break;
             default:
                 header('Location: /Login/index.php');

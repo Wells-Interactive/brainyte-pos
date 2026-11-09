@@ -38,6 +38,7 @@ class Order
         $tableId = (int)($data['table_id'] ?? 0);
         $waiterId = (int)($data['waiter_id'] ?? 0);
         $items = $data['items'] ?? [];
+        $restaurantId = (int)($data['restaurant_id'] ?? 0);
         $instructions = isset($data['instructions']) ? trim((string)$data['instructions']) : null;
         $paymentMethod = in_array(
             strtolower((string)($data['payment_method'] ?? 'pending')),
@@ -53,17 +54,18 @@ class Order
         $menuItemService = new MenuItem($this->pdo);
 
         // Ensure table exists
-        $tableStmt = $this->pdo->prepare('SELECT id, status FROM restaurant_tables WHERE id = :id LIMIT 1');
+        $tableStmt = $this->pdo->prepare('SELECT id, status FROM restaurant_tables WHERE id = :id AND ' . \demo_data_scope_sql('restaurant_tables') . ' LIMIT 1');
         $tableStmt->execute([':id' => $tableId]);
         $table = $tableStmt->fetch();
 
         if (!$table) {
             $this->pdo->prepare(
-                'INSERT INTO restaurant_tables (id, name, status, created_at) VALUES (:id, :name, :status, :created_at)'
+                'INSERT INTO restaurant_tables (id, name, status, restaurant_id, created_at) VALUES (:id, :name, :status, :restaurant_id, :created_at)'
             )->execute([
                 ':id' => $tableId,
                 ':name' => "Table {$tableId}",
                 ':status' => 'available',
+                ':restaurant_id' => $restaurantId ?: null,
                 ':created_at' => $now,
             ]);
         }
@@ -73,8 +75,8 @@ class Order
         try {
             // Create the order
             $orderStmt = $this->pdo->prepare(
-                'INSERT INTO orders (table_id, waiter_id, status, special_instructions, payment_method, created_at, updated_at)
-                 VALUES (:table_id, :waiter_id, :status, :instructions, :payment_method, :created_at, :updated_at)'
+                'INSERT INTO orders (table_id, waiter_id, status, special_instructions, payment_method, restaurant_id, created_at, updated_at)
+                 VALUES (:table_id, :waiter_id, :status, :instructions, :payment_method, :restaurant_id, :created_at, :updated_at)'
             );
             $orderStmt->execute([
                 ':table_id' => $tableId,
@@ -82,6 +84,7 @@ class Order
                 ':status' => 'pending',
                 ':instructions' => $instructions,
                 ':payment_method' => $paymentMethod,
+                ':restaurant_id' => $restaurantId ?: null,
                 ':created_at' => $now,
                 ':updated_at' => $now,
             ]);
@@ -92,8 +95,8 @@ class Order
 
             // Process items - DB only, no fallback
             $insertItemStmt = $this->pdo->prepare(
-                'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, instructions, status, routed_to, created_at)
-                 VALUES (:order_id, :menu_item_id, :quantity, :unit_price, :instructions, :status, :routed_to, :created_at)'
+                'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, instructions, status, routed_to, restaurant_id, created_at)
+                 VALUES (:order_id, :menu_item_id, :quantity, :unit_price, :instructions, :status, :routed_to, :restaurant_id, :created_at)'
             );
 
             $notificationService = new Notification($this->pdo);
@@ -124,6 +127,7 @@ class Order
                     ':instructions' => $itemInstructions,
                     ':status' => 'pending',
                     ':routed_to' => $routedTo,
+                    ':restaurant_id' => $restaurantId ?: null,
                     ':created_at' => $now,
                 ]);
 
@@ -145,7 +149,7 @@ class Order
             }
 
             // Occupy the table
-            $this->pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')
+            $this->pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id AND ' . \demo_data_scope_sql('restaurant_tables'))
                 ->execute([':status' => 'occupied', ':id' => $tableId]);
 
             $this->pdo->commit();
@@ -187,13 +191,14 @@ class Order
              JOIN menu_items mi ON mi.id = oi.menu_item_id
              JOIN orders o ON o.id = oi.order_id
              WHERE oi.order_id = :order_id AND oi.routed_to = :routed_to
+               AND ' . \demo_data_scope_sql('oi') . ' AND ' . \demo_data_scope_sql('o') . ' AND ' . \demo_data_scope_sql('mi') . '
              ORDER BY oi.id'
         );
         $stmt->execute([':order_id' => $orderId, ':routed_to' => $routedTo]);
         $items = $stmt->fetchAll();
 
         $waiterName = '';
-        $userStmt = $this->pdo->prepare('SELECT name FROM users WHERE id = :id LIMIT 1');
+        $userStmt = $this->pdo->prepare('SELECT name FROM users WHERE id = :id AND ' . \demo_data_scope_sql('users') . ' LIMIT 1');
         $userStmt->execute([':id' => $waiterId]);
         $waiter = $userStmt->fetch();
         if ($waiter) {
@@ -228,7 +233,7 @@ class Order
                        u.name AS waiter_name
                 FROM orders o
                 JOIN users u ON u.id = o.waiter_id
-                WHERE 1 = 1';
+                WHERE ' . \demo_data_scope_sql('o') . ' AND ' . \demo_data_scope_sql('u');
         $params = [];
 
         if (in_array($status, self::ALLOWED_STATUSES, true)) {
@@ -252,7 +257,8 @@ class Order
             $itemSql = 'SELECT oi.id, oi.menu_item_id, mi.name AS item_name, oi.quantity, oi.unit_price, oi.instructions, oi.status, oi.routed_to, oi.created_at
                         FROM order_items oi
                         JOIN menu_items mi ON mi.id = oi.menu_item_id
-                        WHERE oi.order_id = :order_id';
+                        WHERE oi.order_id = :order_id
+                          AND ' . \demo_data_scope_sql('oi') . ' AND ' . \demo_data_scope_sql('mi');
 
             $itemParams = [':order_id' => $orderIdVal];
 
@@ -291,7 +297,7 @@ class Order
                  FROM order_items oi
                  JOIN orders o ON o.id = oi.order_id
                  JOIN menu_items mi ON mi.id = oi.menu_item_id
-                 WHERE oi.id = :id LIMIT 1'
+                 WHERE oi.id = :id AND ' . \demo_data_scope_sql('oi') . ' AND ' . \demo_data_scope_sql('o') . ' AND ' . \demo_data_scope_sql('mi') . ' LIMIT 1'
             );
             $stmt->execute([':id' => $itemId]);
             $orderItem = $stmt->fetch();
@@ -303,7 +309,7 @@ class Order
             $oldStatus = $orderItem['status'];
             $orderId = (int)$orderItem['order_id'];
 
-            $this->pdo->prepare('UPDATE order_items SET status = :status WHERE id = :id')
+            $this->pdo->prepare('UPDATE order_items SET status = :status WHERE id = :id AND ' . \demo_data_scope_sql('order_items'))
                 ->execute([':status' => $newStatus, ':id' => $itemId]);
 
             $this->logHistory($orderId, $itemId, $oldStatus, $newStatus, $changedByUserId);
@@ -353,7 +359,7 @@ class Order
         $this->pdo->beginTransaction();
 
         try {
-            $stmt = $this->pdo->prepare('SELECT status FROM orders WHERE id = :id LIMIT 1');
+            $stmt = $this->pdo->prepare('SELECT status FROM orders WHERE id = :id AND ' . \demo_data_scope_sql('orders') . ' LIMIT 1');
             $stmt->execute([':id' => $orderId]);
             $order = $stmt->fetch();
 
@@ -364,11 +370,11 @@ class Order
             $oldStatus = $order['status'];
             $now = date('Y-m-d H:i:s');
 
-            $this->pdo->prepare('UPDATE orders SET status = :status, updated_at = :updated_at WHERE id = :order_id')
+            $this->pdo->prepare('UPDATE orders SET status = :status, updated_at = :updated_at WHERE id = :order_id AND ' . \demo_data_scope_sql('orders'))
                 ->execute([':status' => $newStatus, ':updated_at' => $now, ':order_id' => $orderId]);
 
             // Also update all items
-            $this->pdo->prepare('UPDATE order_items SET status = :status WHERE order_id = :order_id')
+            $this->pdo->prepare('UPDATE order_items SET status = :status WHERE order_id = :order_id AND ' . \demo_data_scope_sql('order_items'))
                 ->execute([':status' => $newStatus, ':order_id' => $orderId]);
 
             $this->logHistory($orderId, null, $oldStatus, $newStatus, $changedByUserId, 'Bulk order status update');
@@ -413,7 +419,7 @@ class Order
         $this->pdo->beginTransaction();
 
         try {
-            $stmt = $this->pdo->prepare('SELECT status, table_id FROM orders WHERE id = :id LIMIT 1');
+            $stmt = $this->pdo->prepare('SELECT status, table_id FROM orders WHERE id = :id AND ' . \demo_data_scope_sql('orders') . ' LIMIT 1');
             $stmt->execute([':id' => $orderId]);
             $order = $stmt->fetch();
 
@@ -425,7 +431,7 @@ class Order
             $now = date('Y-m-d H:i:s');
 
             $this->pdo->prepare(
-                'UPDATE orders SET status = :status, payment_method = :payment_method, updated_at = :updated_at WHERE id = :order_id'
+                'UPDATE orders SET status = :status, payment_method = :payment_method, updated_at = :updated_at WHERE id = :order_id AND ' . \demo_data_scope_sql('orders')
             )->execute([
                 ':status' => 'completed',
                 ':payment_method' => $paymentMethod,
@@ -433,7 +439,7 @@ class Order
                 ':order_id' => $orderId,
             ]);
 
-            $this->pdo->prepare('UPDATE order_items SET status = :status WHERE order_id = :order_id')
+            $this->pdo->prepare('UPDATE order_items SET status = :status WHERE order_id = :order_id AND ' . \demo_data_scope_sql('order_items'))
                 ->execute([':status' => 'completed', ':order_id' => $orderId]);
 
             $this->logHistory($orderId, null, $oldStatus, 'completed', $changedByUserId, "Payment: {$paymentMethod}");
@@ -486,7 +492,7 @@ class Order
         $this->pdo->beginTransaction();
 
         try {
-            $stmt = $this->pdo->prepare('SELECT status, table_id FROM orders WHERE id = :id LIMIT 1');
+            $stmt = $this->pdo->prepare('SELECT status, table_id FROM orders WHERE id = :id AND ' . \demo_data_scope_sql('orders') . ' LIMIT 1');
             $stmt->execute([':id' => $orderId]);
             $order = $stmt->fetch();
 
@@ -497,10 +503,10 @@ class Order
             $oldStatus = $order['status'];
             $now = date('Y-m-d H:i:s');
 
-            $this->pdo->prepare('UPDATE orders SET status = :status, updated_at = :updated_at WHERE id = :order_id')
+            $this->pdo->prepare('UPDATE orders SET status = :status, updated_at = :updated_at WHERE id = :order_id AND ' . \demo_data_scope_sql('orders'))
                 ->execute([':status' => 'completed', ':updated_at' => $now, ':order_id' => $orderId]);
 
-            $this->pdo->prepare('UPDATE order_items SET status = :status WHERE order_id = :order_id')
+            $this->pdo->prepare('UPDATE order_items SET status = :status WHERE order_id = :order_id AND ' . \demo_data_scope_sql('order_items'))
                 ->execute([':status' => 'completed', ':order_id' => $orderId]);
 
             $this->logHistory($orderId, null, $oldStatus, 'completed', $changedByUserId, 'Order cancelled');
@@ -531,12 +537,12 @@ class Order
 
         if ($itemStatus === 'ready') {
             $checkStmt = $this->pdo->prepare(
-                "SELECT COUNT(*) FROM order_items WHERE order_id = :order_id AND status != 'ready'"
+                "SELECT COUNT(*) FROM order_items WHERE order_id = :order_id AND status != 'ready' AND " . \demo_data_scope_sql('order_items')
             );
             $checkStmt->execute([':order_id' => $orderId]);
             $pendingCount = (int)$checkStmt->fetchColumn();
             if ($pendingCount === 0) {
-                $this->pdo->prepare('UPDATE orders SET status = :status, updated_at = :updated_at WHERE id = :order_id')
+                $this->pdo->prepare('UPDATE orders SET status = :status, updated_at = :updated_at WHERE id = :order_id AND ' . \demo_data_scope_sql('orders'))
                     ->execute([':status' => 'ready', ':updated_at' => $now, ':order_id' => $orderId]);
                 $this->logHistory($orderId, null, 'preparing', 'ready', $changedByUserId, 'All items ready');
 
@@ -545,23 +551,23 @@ class Order
             }
         } elseif ($itemStatus === 'served') {
             $checkStmt = $this->pdo->prepare(
-                "SELECT COUNT(*) FROM order_items WHERE order_id = :order_id AND status NOT IN ('served', 'completed')"
+                "SELECT COUNT(*) FROM order_items WHERE order_id = :order_id AND status NOT IN ('served', 'completed') AND " . \demo_data_scope_sql('order_items')
             );
             $checkStmt->execute([':order_id' => $orderId]);
             $pendingCount = (int)$checkStmt->fetchColumn();
             if ($pendingCount === 0) {
-                $this->pdo->prepare('UPDATE orders SET status = :status, updated_at = :updated_at WHERE id = :order_id')
+                $this->pdo->prepare('UPDATE orders SET status = :status, updated_at = :updated_at WHERE id = :order_id AND ' . \demo_data_scope_sql('orders'))
                     ->execute([':status' => 'served', ':updated_at' => $now, ':order_id' => $orderId]);
                 $this->logHistory($orderId, null, 'ready', 'served', $changedByUserId, 'All items served');
             }
         } elseif ($itemStatus === 'completed') {
             $checkStmt = $this->pdo->prepare(
-                "SELECT COUNT(*) FROM order_items WHERE order_id = :order_id AND status != 'completed'"
+                "SELECT COUNT(*) FROM order_items WHERE order_id = :order_id AND status != 'completed' AND " . \demo_data_scope_sql('order_items')
             );
             $checkStmt->execute([':order_id' => $orderId]);
             $pendingCount = (int)$checkStmt->fetchColumn();
             if ($pendingCount === 0) {
-                $this->pdo->prepare('UPDATE orders SET status = :status, updated_at = :updated_at WHERE id = :order_id')
+                $this->pdo->prepare('UPDATE orders SET status = :status, updated_at = :updated_at WHERE id = :order_id AND ' . \demo_data_scope_sql('orders'))
                     ->execute([':status' => 'completed', ':updated_at' => $now, ':order_id' => $orderId]);
                 $this->logHistory($orderId, null, 'served', 'completed', $changedByUserId);
                 $this->freeTable($orderId);
@@ -583,7 +589,7 @@ class Order
      */
     private function freeTable(int $orderId): void
     {
-        $tableStmt = $this->pdo->prepare('SELECT table_id FROM orders WHERE id = :id');
+        $tableStmt = $this->pdo->prepare('SELECT table_id FROM orders WHERE id = :id AND ' . \demo_data_scope_sql('orders'));
         $tableStmt->execute([':id' => $orderId]);
         $tableRow = $tableStmt->fetch();
         
@@ -595,14 +601,14 @@ class Order
 
         // Check if there are other active (non-completed) orders for this table
         $activeStmt = $this->pdo->prepare(
-            "SELECT COUNT(*) FROM orders WHERE table_id = :table_id AND status != 'completed' AND id != :exclude_id"
+            "SELECT COUNT(*) FROM orders WHERE table_id = :table_id AND status != 'completed' AND id != :exclude_id AND " . \demo_data_scope_sql('orders')
         );
         $activeStmt->execute([':table_id' => $tableId, ':exclude_id' => $orderId]);
         $activeCount = (int)$activeStmt->fetchColumn();
 
         // Only free table if no other active orders exist
         if ($activeCount === 0) {
-            $this->pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')
+            $this->pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id AND ' . \demo_data_scope_sql('restaurant_tables'))
                 ->execute([':status' => 'available', ':id' => $tableId]);
         }
     }
@@ -618,9 +624,10 @@ class Order
         ?int $changedByUserId,
         ?string $notes = null
     ): void {
+        $authUser = \get_auth_user() ?? [];
         $stmt = $this->pdo->prepare(
-            'INSERT INTO order_status_history (order_id, order_item_id, from_status, to_status, changed_by_user_id, notes, created_at)
-             VALUES (:order_id, :order_item_id, :from_status, :to_status, :changed_by_user_id, :notes, :created_at)'
+            'INSERT INTO order_status_history (order_id, order_item_id, from_status, to_status, changed_by_user_id, notes, restaurant_id, created_at)
+             VALUES (:order_id, :order_item_id, :from_status, :to_status, :changed_by_user_id, :notes, :restaurant_id, :created_at)'
         );
         $stmt->execute([
             ':order_id' => $orderId,
@@ -629,6 +636,7 @@ class Order
             ':to_status' => $toStatus,
             ':changed_by_user_id' => $changedByUserId,
             ':notes' => $notes,
+            ':restaurant_id' => $authUser['restaurant_id'] ?? null,
             ':created_at' => date('Y-m-d H:i:s'),
         ]);
     }
@@ -641,7 +649,7 @@ class Order
         $sql = 'SELECT h.*, u.name AS changed_by_name
                 FROM order_status_history h
                 LEFT JOIN users u ON u.id = h.changed_by_user_id
-                WHERE h.order_id = :order_id';
+                WHERE h.order_id = :order_id AND ' . \demo_data_scope_sql('h');
         $params = [':order_id' => $orderId];
 
         if ($orderItemId !== null) {
@@ -661,7 +669,7 @@ class Order
     public function markTablePaid(int $tableId, string $paymentMethod, int $changedByUserId): array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT id, status FROM orders WHERE table_id = :table_id AND status != :completed ORDER BY id DESC LIMIT 1'
+            'SELECT id, status FROM orders WHERE table_id = :table_id AND status != :completed AND ' . \demo_data_scope_sql('orders') . ' ORDER BY id DESC LIMIT 1'
         );
         $stmt->execute([':table_id' => $tableId, ':completed' => 'completed']);
         $order = $stmt->fetch();
@@ -671,7 +679,7 @@ class Order
         }
 
         // No active order, just free the table
-        $this->pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id')
+        $this->pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id AND ' . \demo_data_scope_sql('restaurant_tables'))
             ->execute([':status' => 'available', ':id' => $tableId]);
 
         return [

@@ -1,0 +1,20 @@
+-- Tag demonstration records so they can be isolated from the restaurant's
+-- normal data while remaining in the existing database.
+ALTER TABLE `users` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `restaurant_tables` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `menu_items` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `orders` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `order_items` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `order_status_history` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `notifications` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `print_jobs` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `delivery_orders` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `delivery_tracking` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `audit_logs` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `inventory_items` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `inventory_movements` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `suppliers` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `supply_receipts` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `supply_receipt_items` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `table_close_evidence` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;
+ALTER TABLE `order_cancellation_requests` ADD COLUMN `demo_owner_id` INT DEFAULT NULL;

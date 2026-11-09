@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/demo_mode.php';
+
 if (!defined('BRAINYTE_AUTOLOAD_REGISTERED')) {
     define('BRAINYTE_AUTOLOAD_REGISTERED', true);
     spl_autoload_register(function (string $class): void {
@@ -40,10 +42,7 @@ function init_timezone(): void
 
     try {
         $pdo = get_db();
-        $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'timezone' LIMIT 1");
-        $stmt->execute();
-        $row = $stmt->fetch();
-        $tz = $row ? $row['setting_value'] : 'Africa/Lagos';
+        $tz = get_setting_value($pdo, 'timezone', []) ?? 'Africa/Lagos';
         date_default_timezone_set($tz);
     } catch (Throwable $e) {
         date_default_timezone_set('Africa/Lagos');
@@ -216,6 +215,73 @@ function is_demo_mode_enabled(PDO $pdo): bool
     $stmt = $pdo->prepare('SELECT setting_value FROM settings WHERE setting_key = :key LIMIT 1');
     $stmt->execute([':key' => 'demo_mode_enabled']);
     return (string)$stmt->fetchColumn() === '1';
+}
+
+function restaurant_setting_storage_key(string $key, ?array $user = null): string
+{
+    if (in_array($key, [
+        'demo_mode_enabled',
+        'home_delivery_enabled',
+        'delivery_base_price',
+        'delivery_per_km_rate',
+        'delivery_max_distance',
+        'setup_complete',
+        'platform_super_admin_id',
+        'restaurant_data_backfilled',
+    ], true)) {
+        return $key;
+    }
+
+    $user ??= get_auth_user() ?? [];
+    $restaurantId = (int)($user['restaurant_id'] ?? 0);
+    if ($restaurantId <= 0 || !empty($user['is_demo']) || ($user['role'] ?? '') === 'super_admin') {
+        return $key;
+    }
+
+    return 'restaurant_' . $restaurantId . '_' . $key;
+}
+
+function get_setting_value(PDO $pdo, string $key, ?array $user = null): ?string
+{
+    if (preg_match('/^restaurant_[0-9]+_/', $key) === 1) {
+        return null;
+    }
+
+    $storageKey = restaurant_setting_storage_key($key, $user);
+    $stmt = $pdo->prepare('SELECT setting_value FROM settings WHERE setting_key = :key LIMIT 1');
+    $stmt->execute([':key' => $storageKey]);
+    $value = $stmt->fetchColumn();
+    if ($value !== false) {
+        return (string)$value;
+    }
+    if ($storageKey === $key) {
+        return null;
+    }
+
+    $stmt->execute([':key' => $key]);
+    $value = $stmt->fetchColumn();
+    return $value === false ? null : (string)$value;
+}
+
+function get_setting_values(PDO $pdo, ?array $user = null): array
+{
+    $user ??= get_auth_user() ?? [];
+    $prefix = restaurant_setting_storage_key('', $user);
+    $rows = $pdo->query('SELECT setting_key, setting_value FROM settings')->fetchAll();
+    $settings = [];
+    foreach ($rows as $row) {
+        $storageKey = (string)$row['setting_key'];
+        if (preg_match('/^restaurant_[0-9]+_/', $storageKey) === 1) {
+            if ($prefix !== '' && str_starts_with($storageKey, $prefix)) {
+                $settings[substr($storageKey, strlen($prefix))] = (string)$row['setting_value'];
+            }
+            continue;
+        }
+        if (!array_key_exists($storageKey, $settings)) {
+            $settings[$storageKey] = (string)$row['setting_value'];
+        }
+    }
+    return $settings;
 }
 
 /** Prevent a disabled demo account from using protected API resources. */
@@ -413,16 +479,21 @@ function _ensure_token_column(PDO $pdo, string $table, string $column, string $d
 function validate_access_token(PDO $pdo, string $token): ?array
 {
     $stmt = $pdo->prepare(
-        'SELECT u.id, u.name, u.email, u.role, u.is_demo, a.id AS token_id
+        'SELECT u.id, u.name, u.email, u.role, u.is_demo, u.restaurant_id,
+                r.is_active AS restaurant_is_active, r.archived_at, a.id AS token_id
          FROM auth_tokens a
          JOIN users u ON u.id = a.user_id
+         LEFT JOIN restaurants r ON r.id = u.restaurant_id
          WHERE a.token = :token AND a.revoked = 0 AND a.expires_at > :now
          LIMIT 1'
     );
     $stmt->execute([':token' => $token, ':now' => date('Y-m-d H:i:s')]);
     $row = $stmt->fetch();
 
-    if (!$row) {
+    if (
+        !$row
+        || ($row['restaurant_id'] !== null && ((int)$row['restaurant_is_active'] !== 1 || $row['archived_at'] !== null))
+    ) {
         return null;
     }
 
@@ -436,6 +507,7 @@ function validate_access_token(PDO $pdo, string $token): ?array
         'email' => $row['email'],
         'role' => $row['role'],
         'is_demo' => (bool)($row['is_demo'] ?? false),
+        'restaurant_id' => $row['restaurant_id'] === null ? null : (int)$row['restaurant_id'],
         'token_id' => (int)$row['token_id'],
     ];
 }
@@ -449,9 +521,11 @@ function validate_access_token(PDO $pdo, string $token): ?array
 function validate_refresh_token(PDO $pdo, string $refreshToken, string $deviceName = ''): ?array
 {
     $stmt = $pdo->prepare(
-        'SELECT a.id AS token_id, a.user_id, u.id, u.name, u.email, u.role, u.is_demo, a.device_name
+        'SELECT a.id AS token_id, a.user_id, u.id, u.name, u.email, u.role, u.is_demo, u.restaurant_id,
+                r.is_active AS restaurant_is_active, r.archived_at, a.device_name
          FROM auth_tokens a
          JOIN users u ON u.id = a.user_id
+         LEFT JOIN restaurants r ON r.id = u.restaurant_id
          WHERE a.refresh_token = :refresh_token 
            AND a.revoked = 0 
            AND a.refresh_expires_at > :now
@@ -460,7 +534,10 @@ function validate_refresh_token(PDO $pdo, string $refreshToken, string $deviceNa
     $stmt->execute([':refresh_token' => $refreshToken, ':now' => date('Y-m-d H:i:s')]);
     $row = $stmt->fetch();
 
-    if (!$row) {
+    if (
+        !$row
+        || ($row['restaurant_id'] !== null && ((int)$row['restaurant_is_active'] !== 1 || $row['archived_at'] !== null))
+    ) {
         return null;
     }
 
@@ -481,6 +558,7 @@ function validate_refresh_token(PDO $pdo, string $refreshToken, string $deviceNa
             'email' => $row['email'],
             'role' => $row['role'],
             'is_demo' => (bool)($row['is_demo'] ?? false),
+            'restaurant_id' => $row['restaurant_id'] === null ? null : (int)$row['restaurant_id'],
         ],
         'tokens' => $tokens,
     ];
@@ -624,11 +702,18 @@ function get_auth_user(): ?array
     }
     $userId = get_session_user_id();
     if ($userId > 0) {
+        $restaurantId = $_SESSION['restaurant_id'] ?? $_SESSION['user']['restaurant_id'] ?? null;
+        if ($restaurantId === null && get_session_role() !== 'super_admin') {
+            $stmt = get_db()->prepare('SELECT restaurant_id FROM users WHERE id = :id LIMIT 1');
+            $stmt->execute([':id' => $userId]);
+            $restaurantId = $stmt->fetchColumn();
+        }
         return [
             'id' => $userId,
             'name' => get_session_username(),
             'role' => get_session_role(),
             'is_demo' => (bool)($_SESSION['user']['is_demo'] ?? false),
+            'restaurant_id' => $restaurantId === null || $restaurantId === false ? null : (int)$restaurantId,
             'auth_type' => 'session',
         ];
     }
@@ -646,6 +731,7 @@ function get_auth_user(): ?array
                     'email' => $user['email'],
                     'role' => $user['role'],
                     'is_demo' => (bool)($user['is_demo'] ?? false),
+                    'restaurant_id' => $user['restaurant_id'] ?? null,
                     'auth_type' => 'bearer',
                 ];
             }
@@ -666,6 +752,23 @@ function require_auth(): array
     if (!$user) {
         http_response_code(401);
         json_response(['error' => 'Authentication required'], 401);
+    }
+    if (($user['role'] ?? '') !== 'super_admin') {
+        $stmt = get_db()->prepare(
+            'SELECT u.restaurant_id, r.is_active, r.archived_at
+             FROM users u
+             LEFT JOIN restaurants r ON r.id = u.restaurant_id
+             WHERE u.id = :id LIMIT 1'
+        );
+        $stmt->execute([':id' => (int)$user['id']]);
+        $restaurant = $stmt->fetch();
+        $user['restaurant_id'] = isset($restaurant['restaurant_id']) ? (int)$restaurant['restaurant_id'] : null;
+        if (
+            !empty($user['restaurant_id'])
+            && (!$restaurant || (int)$restaurant['is_active'] !== 1 || $restaurant['archived_at'] !== null)
+        ) {
+            json_response(['error' => 'This restaurant is inactive. Contact the platform administrator.'], 403);
+        }
     }
     require_enabled_demo_mode($user);
     deny_demo_write($user);
@@ -702,16 +805,25 @@ function revoke_refresh_token(PDO $pdo, string $refreshToken): bool
 // ============================================================
 
 /**
- * Check if the system has been set up (i.e., at least one admin/owner user exists).
+ * Check if the platform Super Admin account has been installed.
  */
 function is_setup_complete(PDO $pdo): bool
 {
     try {
-        $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role IN ('admin', 'owner')");
+        $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'super_admin' AND is_demo = 0");
         return (int)$stmt->fetchColumn() > 0;
     } catch (Throwable $e) {
         return false;
     }
+}
+
+function is_strong_password(string $password): bool
+{
+    return strlen($password) >= 12
+        && preg_match('/[a-z]/', $password) === 1
+        && preg_match('/[A-Z]/', $password) === 1
+        && preg_match('/[0-9]/', $password) === 1
+        && preg_match('/[^a-zA-Z0-9]/', $password) === 1;
 }
 
 /**
@@ -775,9 +887,12 @@ function log_order_status_history(
     ?string $notes = null
 ): void {
     $now = date('Y-m-d H:i:s');
+    $authUser = get_auth_user();
+    $demoOwnerId = !empty($authUser['is_demo']) ? (int)$authUser['id'] : null;
+    $restaurantId = isset($authUser['restaurant_id']) ? (int)$authUser['restaurant_id'] : null;
     $stmt = $pdo->prepare(
-        'INSERT INTO order_status_history (order_id, order_item_id, from_status, to_status, changed_by_user_id, notes, created_at)
-         VALUES (:order_id, :order_item_id, :from_status, :to_status, :changed_by_user_id, :notes, :created_at)'
+        'INSERT INTO order_status_history (order_id, order_item_id, from_status, to_status, changed_by_user_id, notes, demo_owner_id, restaurant_id, created_at)
+         VALUES (:order_id, :order_item_id, :from_status, :to_status, :changed_by_user_id, :notes, :demo_owner_id, :restaurant_id, :created_at)'
     );
     $stmt->execute([
         ':order_id' => $orderId,
@@ -786,6 +901,8 @@ function log_order_status_history(
         ':to_status' => $toStatus,
         ':changed_by_user_id' => $changedByUserId,
         ':notes' => $notes,
+        ':demo_owner_id' => $demoOwnerId,
+        ':restaurant_id' => $restaurantId,
         ':created_at' => $now,
     ]);
 }
@@ -808,9 +925,12 @@ function create_notification(
     ?int $referenceId = null
 ): int {
     $now = date('Y-m-d H:i:s');
+    $authUser = get_auth_user();
+    $demoOwnerId = !empty($authUser['is_demo']) ? (int)$authUser['id'] : null;
+    $restaurantId = isset($authUser['restaurant_id']) ? (int)$authUser['restaurant_id'] : null;
     $stmt = $pdo->prepare(
-        'INSERT INTO notifications (target_role, target_user_id, title, body, type, reference_type, reference_id, is_read, sent_to_push, created_at)
-         VALUES (:target_role, :target_user_id, :title, :body, :type, :reference_type, :reference_id, 0, 0, :created_at)'
+        'INSERT INTO notifications (target_role, target_user_id, title, body, type, reference_type, reference_id, is_read, sent_to_push, demo_owner_id, restaurant_id, created_at)
+         VALUES (:target_role, :target_user_id, :title, :body, :type, :reference_type, :reference_id, 0, 0, :demo_owner_id, :restaurant_id, :created_at)'
     );
     $stmt->execute([
         ':target_role' => $targetRole,
@@ -820,19 +940,29 @@ function create_notification(
         ':type' => $type,
         ':reference_type' => $referenceType,
         ':reference_id' => $referenceId,
+        ':demo_owner_id' => $demoOwnerId,
+        ':restaurant_id' => $restaurantId,
         ':created_at' => $now,
     ]);
     $notificationId = (int)$pdo->lastInsertId();
     // Best-effort only: notification records remain authoritative if FCM is unavailable.
     if (dispatch_firebase_notification($pdo, $targetRole, $targetUserId, $title, $body, $referenceType, $referenceId)) {
-        $pdo->prepare('UPDATE notifications SET sent_to_push = 1 WHERE id = :id')->execute([':id' => $notificationId]);
+        $pdo->prepare('UPDATE notifications SET sent_to_push = 1 WHERE id = :id AND ' . demo_data_scope_sql('notifications'))->execute([':id' => $notificationId]);
     }
     return $notificationId;
 }
 
-/** Send FCM HTTP v1 notifications when a service-account path is configured. */
+/** Return whether FCM sending and subscriptions are currently enabled. */
+function firebase_messaging_enabled(): bool
+{
+    // Change to true when Firebase messaging is ready to be resumed.
+    return false;
+}
+
+/** Send FCM HTTP v1 notifications when enabled and a service account is configured. */
 function dispatch_firebase_notification(PDO $pdo, string $targetRole, ?int $targetUserId, string $title, string $body, ?string $referenceType, ?int $referenceId): bool
 {
+    if (!firebase_messaging_enabled()) return false;
     $path = getenv('FIREBASE_SERVICE_ACCOUNT_PATH') ?: '';
     if ($path === '' || !is_readable($path) || !function_exists('curl_init')) return false;
     try {
@@ -848,7 +978,7 @@ function dispatch_firebase_notification(PDO $pdo, string $targetRole, ?int $targ
         curl_setopt_array($curl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => http_build_query(['grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer', 'assertion' => $jwt]), CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 8]);
         $oauth = json_decode((string)curl_exec($curl), true); curl_close($curl);
         $accessToken = $oauth['access_token'] ?? ''; if ($accessToken === '') return false;
-        $sql = 'SELECT p.token FROM push_subscriptions p JOIN users u ON u.id = p.user_id WHERE ';
+        $sql = 'SELECT p.token FROM push_subscriptions p JOIN users u ON u.id = p.user_id WHERE ' . demo_data_scope_sql('u') . ' AND ';
         $params = [];
         if ($targetUserId !== null) { $sql .= 'p.user_id = :user_id'; $params[':user_id'] = $targetUserId; }
         elseif ($targetRole === 'all') { $sql .= '1=1'; }
@@ -885,7 +1015,7 @@ function dispatch_firebase_notification(PDO $pdo, string $targetRole, ?int $targ
  */
 function get_pending_notifications(PDO $pdo, ?string $role = null, ?int $userId = null): array
 {
-    $sql = 'SELECT * FROM notifications WHERE is_read = 0';
+    $sql = 'SELECT * FROM notifications WHERE is_read = 0 AND ' . demo_data_scope_sql('notifications');
     $params = [];
 
     if ($role !== null && $role !== 'all') {
@@ -908,6 +1038,6 @@ function get_pending_notifications(PDO $pdo, ?string $role = null, ?int $userId 
  */
 function mark_notification_read(PDO $pdo, int $notificationId): void
 {
-    $pdo->prepare('UPDATE notifications SET is_read = 1 WHERE id = :id')
+    $pdo->prepare('UPDATE notifications SET is_read = 1 WHERE id = :id AND ' . demo_data_scope_sql('notifications'))
         ->execute([':id' => $notificationId]);
 }

@@ -60,10 +60,12 @@ class PrintJob
     {
         $now = date('Y-m-d H:i:s');
         $printer = in_array($printer, self::PRINTER_TYPES, true) ? $printer : 'default';
+        $user = \get_auth_user();
+        $demoOwnerId = !empty($user['is_demo']) ? (int)$user['id'] : null;
 
         $stmt = $this->pdo->prepare(
-            'INSERT INTO print_jobs (order_item_id, order_id, department, printer, status, attempts, created_at)
-             VALUES (:order_item_id, :order_id, :department, :printer, :status, 0, :created_at)'
+            'INSERT INTO print_jobs (order_item_id, order_id, department, printer, status, attempts, demo_owner_id, restaurant_id, created_at)
+             VALUES (:order_item_id, :order_id, :department, :printer, :status, 0, :demo_owner_id, :restaurant_id, :created_at)'
         );
         $stmt->execute([
             ':order_item_id' => $orderItemId,
@@ -71,6 +73,8 @@ class PrintJob
             ':department' => $department,
             ':printer' => $printer,
             ':status' => self::STATUS_PENDING,
+            ':demo_owner_id' => $demoOwnerId,
+            ':restaurant_id' => $user['restaurant_id'] ?? null,
             ':created_at' => $now,
         ]);
 
@@ -129,7 +133,7 @@ class PrintJob
     {
         $now = date('Y-m-d H:i:s');
         $stmt = $this->pdo->prepare(
-            'UPDATE print_jobs SET status = :status, printed_at = :printed_at WHERE id = :id AND status != :cancelled'
+            'UPDATE print_jobs SET status = :status, printed_at = :printed_at WHERE id = :id AND status != :cancelled AND ' . \demo_data_scope_sql('print_jobs')
         );
         $stmt->execute([
             ':status' => self::STATUS_COMPLETED,
@@ -149,7 +153,7 @@ class PrintJob
         $now = date('Y-m-d H:i:s');
 
         // Get current attempts
-        $stmt = $this->pdo->prepare('SELECT attempts FROM print_jobs WHERE id = :id FOR UPDATE');
+        $stmt = $this->pdo->prepare('SELECT attempts FROM print_jobs WHERE id = :id AND ' . \demo_data_scope_sql('print_jobs') . ' FOR UPDATE');
         $stmt->execute([':id' => $jobId]);
         $job = $stmt->fetch();
 
@@ -162,7 +166,7 @@ class PrintJob
         if ($attempts >= self::MAX_ATTEMPTS) {
             // Mark as permanently failed
             $stmt = $this->pdo->prepare(
-                'UPDATE print_jobs SET status = :status, attempts = :attempts, last_error = :last_error WHERE id = :id'
+                'UPDATE print_jobs SET status = :status, attempts = :attempts, last_error = :last_error WHERE id = :id AND ' . \demo_data_scope_sql('print_jobs')
             );
             $stmt->execute([
                 ':status' => self::STATUS_FAILED,
@@ -173,7 +177,7 @@ class PrintJob
         } else {
             // Retry: set back to pending so it can be retried
             $stmt = $this->pdo->prepare(
-                'UPDATE print_jobs SET status = :status, attempts = :attempts, last_error = :last_error WHERE id = :id'
+                'UPDATE print_jobs SET status = :status, attempts = :attempts, last_error = :last_error WHERE id = :id AND ' . \demo_data_scope_sql('print_jobs')
             );
             $stmt->execute([
                 ':status' => self::STATUS_PENDING,
@@ -192,7 +196,7 @@ class PrintJob
     public function markPrinting(int $jobId): bool
     {
         $stmt = $this->pdo->prepare(
-            'UPDATE print_jobs SET status = :status WHERE id = :id AND status = :pending'
+            'UPDATE print_jobs SET status = :status WHERE id = :id AND status = :pending AND ' . \demo_data_scope_sql('print_jobs')
         );
         $stmt->execute([
             ':status' => self::STATUS_PRINTING,
@@ -217,6 +221,8 @@ class PrintJob
              JOIN orders o ON o.id = pj.order_id
              JOIN users u ON u.id = o.waiter_id
              WHERE pj.department = :department AND pj.status = :status
+               AND ' . \demo_data_scope_sql('pj') . ' AND ' . \demo_data_scope_sql('oi') . ' AND ' . \demo_data_scope_sql('mi') . '
+               AND ' . \demo_data_scope_sql('o') . ' AND ' . \demo_data_scope_sql('u') . '
              ORDER BY pj.created_at ASC
              LIMIT 20'
         );
@@ -232,7 +238,7 @@ class PrintJob
      */
     public function getFailedJobs(): array
     {
-        $stmt = $this->pdo->query(
+        $stmt = $this->pdo->prepare(
             'SELECT pj.*, oi.menu_item_id, mi.name AS item_name, oi.quantity,
                     o.table_id, u.name AS waiter_name
              FROM print_jobs pj
@@ -241,6 +247,8 @@ class PrintJob
              JOIN orders o ON o.id = pj.order_id
              JOIN users u ON u.id = o.waiter_id
              WHERE pj.status = :status
+               AND ' . \demo_data_scope_sql('pj') . ' AND ' . \demo_data_scope_sql('oi') . ' AND ' . \demo_data_scope_sql('mi') . '
+               AND ' . \demo_data_scope_sql('o') . ' AND ' . \demo_data_scope_sql('u') . '
              ORDER BY pj.created_at DESC
              LIMIT 50'
         );
@@ -254,7 +262,7 @@ class PrintJob
     public function retry(int $jobId): bool
     {
         $stmt = $this->pdo->prepare(
-            'UPDATE print_jobs SET status = :status, attempts = 0, last_error = NULL WHERE id = :id AND status = :failed'
+            'UPDATE print_jobs SET status = :status, attempts = 0, last_error = NULL WHERE id = :id AND status = :failed AND ' . \demo_data_scope_sql('print_jobs')
         );
         $stmt->execute([
             ':status' => self::STATUS_PENDING,
@@ -270,7 +278,7 @@ class PrintJob
     public function cancel(int $jobId): bool
     {
         $stmt = $this->pdo->prepare(
-            'UPDATE print_jobs SET status = :status WHERE id = :id AND status IN (:pending, :printing, :failed)'
+            'UPDATE print_jobs SET status = :status WHERE id = :id AND status IN (:pending, :printing, :failed) AND ' . \demo_data_scope_sql('print_jobs')
         );
         $stmt->execute([
             ':status' => self::STATUS_CANCELLED,
@@ -293,7 +301,7 @@ class PrintJob
              JOIN order_items oi ON oi.id = pj.order_item_id
              JOIN menu_items mi ON mi.id = oi.menu_item_id
              JOIN orders o ON o.id = pj.order_id
-             WHERE pj.id = :id
+             WHERE pj.id = :id AND ' . \demo_data_scope_sql('pj') . ' AND ' . \demo_data_scope_sql('oi') . ' AND ' . \demo_data_scope_sql('mi') . ' AND ' . \demo_data_scope_sql('o') . '
              LIMIT 1'
         );
         $stmt->execute([':id' => $jobId]);
@@ -315,10 +323,7 @@ class PrintJob
     public function isDirectPrintingEnabled(): bool
     {
         try {
-            $stmt = $this->pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'direct_printing' LIMIT 1");
-            $stmt->execute();
-            $row = $stmt->fetch();
-            return $row && $row['setting_value'] === '1';
+            return \get_setting_value($this->pdo, 'direct_printing') === '1';
         } catch (Throwable $e) {
             return false;
         }
@@ -332,21 +337,21 @@ class PrintJob
         $stats = [];
 
         // Total jobs
-        $stmt = $this->pdo->query("SELECT COUNT(*) FROM print_jobs");
+        $scope = \demo_data_scope_sql('print_jobs');
+        $stmt = $this->pdo->query("SELECT COUNT(*) FROM print_jobs WHERE {$scope}");
         $stats['total'] = (int)$stmt->fetchColumn();
 
         // By status
         foreach ([self::STATUS_PENDING, self::STATUS_PRINTING, self::STATUS_COMPLETED, self::STATUS_FAILED, self::STATUS_CANCELLED] as $status) {
-            $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM print_jobs WHERE status = :status");
+            $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM print_jobs WHERE status = :status AND {$scope}");
             $stmt->execute([':status' => $status]);
             $stats[$status] = (int)$stmt->fetchColumn();
         }
 
         // Today's jobs
-        $stmt = $this->pdo->query("SELECT COUNT(*) FROM print_jobs WHERE DATE(created_at) = CURDATE()");
+        $stmt = $this->pdo->query("SELECT COUNT(*) FROM print_jobs WHERE DATE(created_at) = CURDATE() AND {$scope}");
         $stats['today'] = (int)$stmt->fetchColumn();
 
         return $stats;
     }
 }
-

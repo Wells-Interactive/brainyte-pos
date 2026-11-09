@@ -27,31 +27,11 @@ class TableManager
      */
     public function getAll(): array
     {
-        try {
-            $rows = $this->pdo->query('SELECT id, name, status FROM restaurant_tables ORDER BY id')->fetchAll();
-            $tableMap = [];
-            foreach ($rows as $table) {
-                $tableMap[(int)$table['id']] = $table;
-            }
-
-            $tables = [];
-            for ($i = 1; $i <= self::TOTAL_TABLES; $i++) {
-                if (isset($tableMap[$i])) {
-                    $tables[] = $tableMap[$i];
-                } else {
-                    $tables[] = ['id' => $i, 'name' => "Table {$i}", 'status' => 'available'];
-                }
-            }
-
-            return $tables;
-        } catch (\Throwable $e) {
-            // Return default tables
-            $tables = [];
-            for ($i = 1; $i <= self::TOTAL_TABLES; $i++) {
-                $tables[] = ['id' => $i, 'name' => "Table {$i}", 'status' => 'available'];
-            }
-            return $tables;
-        }
+        return $this->pdo->query(
+            'SELECT id, name, status FROM restaurant_tables WHERE '
+            . \demo_data_scope_sql('restaurant_tables')
+            . ' ORDER BY id'
+        )->fetchAll();
     }
 
     /**
@@ -59,7 +39,7 @@ class TableManager
      */
     public function getById(int $id): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT id, name, status FROM restaurant_tables WHERE id = :id LIMIT 1');
+        $stmt = $this->pdo->prepare('SELECT id, name, status FROM restaurant_tables WHERE id = :id AND ' . \demo_data_scope_sql('restaurant_tables') . ' LIMIT 1');
         $stmt->execute([':id' => $id]);
         $table = $stmt->fetch();
         return $table ?: null;
@@ -74,7 +54,7 @@ class TableManager
             throw new \InvalidArgumentException("Invalid table status: {$status}");
         }
 
-        $stmt = $this->pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id');
+        $stmt = $this->pdo->prepare('UPDATE restaurant_tables SET status = :status WHERE id = :id AND ' . \demo_data_scope_sql('restaurant_tables'));
         $stmt->execute([':status' => $status, ':id' => $id]);
         return $stmt->rowCount() > 0;
     }
@@ -86,14 +66,16 @@ class TableManager
     {
         $table = $this->getById($id);
         if (!$table) {
+            $user = \get_auth_user() ?? [];
             $stmt = $this->pdo->prepare(
-                'INSERT INTO restaurant_tables (id, name, status, created_at) 
-                 VALUES (:id, :name, :status, :created_at)'
+                'INSERT INTO restaurant_tables (id, name, status, restaurant_id, created_at)
+                 VALUES (:id, :name, :status, :restaurant_id, :created_at)'
             );
             $stmt->execute([
                 ':id' => $id,
                 ':name' => $name ?: "Table {$id}",
                 ':status' => 'available',
+                ':restaurant_id' => $user['restaurant_id'] ?? null,
                 ':created_at' => date('Y-m-d H:i:s'),
             ]);
         }
@@ -108,12 +90,14 @@ class TableManager
             $status = 'available';
         }
 
+        $user = \get_auth_user() ?? [];
         $stmt = $this->pdo->prepare(
-            'INSERT INTO restaurant_tables (name, status, created_at) VALUES (:name, :status, :created_at)'
+            'INSERT INTO restaurant_tables (name, status, restaurant_id, created_at) VALUES (:name, :status, :restaurant_id, :created_at)'
         );
         $stmt->execute([
             ':name' => $name,
             ':status' => $status,
+            ':restaurant_id' => $user['restaurant_id'] ?? null,
             ':created_at' => date('Y-m-d H:i:s'),
         ]);
         return (int)$this->pdo->lastInsertId();
