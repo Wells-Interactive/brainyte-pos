@@ -52,12 +52,19 @@ Experience Brainyte POS:
 [🚀 Launch Live Demo](https://brainytepos.is-great.net)
 
 
+## 🆕 New Features
+
+- Multi-restaurant platform managed by a setup-installed Super Admin.
+- Search, activate, deactivate, archive, and group restaurants into chains.
+- Shared Flutter app with restaurant-scoped accounts and operations.
+- Globally unique email addresses across restaurant accounts.
+- Chain menu sharing with branch-specific inventory and operations.
+- Menu items added at a chain branch are visible to the other branches in that chain. 
+- Restaurant Owners and Admins use the same Flutter app; their accounts and operational data are scoped
+to their assigned restaurant. This way every restaurant can you the app on Google play Store.
+
+
 # ✨ Features
-##  Demo mode
-✅ Owner-only Demo Mode toggle restored in the existing admin Settings UI.
-✅ Demo mode Enables prompts for a non-hardcoded password and creates demo.owner@brainyte.local.
-✅ Demo owner uses the existing owner role.
-✅ Disabling demo mode blocks new demo sign-ins and revokes demo token sessions.
 
 
 ## 🔐 Authentication
@@ -183,52 +190,16 @@ Testing & Bug Fixes
 - Token Revocation & Device Sessions (NEW - IMPLEMENTED)
 - Audit Logging (NEW - IMPLEMENTED)
 - Rate Limiting (NEW - IMPLEMENTED)
+- Multi-Restaurant management
 
 **Current Stage**
 
 ---
 
-## 📱 Phase 3
 
-Android App
 
-Planned Features
 
-- Native Flutter App
-- Push Notifications
-- Offline Mode
-- Live Kitchen Updates
-- Live Bar Updates
 
-**Status:** On-going
-
----
-
-## 🍎 Phase 4
-
-iOS App
-
-- Native Flutter
-- App Store Release
-- iPhone Optimized
-- iPad Support
-
----
-
-## ☁ Phase 5
-
-Cloud Edition
-
-- Multi-Branch
-- Multi-Countries
-- Multi-Currency
-- Payments and Billings
-- Online Dashboard
-- Analytics
-- Reporting
-- Remote Management
-
----
 
 # 🛠 Technology Stack
 
@@ -292,3 +263,5 @@ Email: wellsintltd@gmail.com
 website: http://www.wellsint.site
 
 </div>
+
+

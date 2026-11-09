@@ -74,11 +74,14 @@ class Inventory
      */
     public function getAll(): array
     {
+        $inventoryScope = \demo_data_scope_sql('ii');
+        $menuScope = \demo_data_scope_sql('mi');
         $sql = "SELECT ii.*, mi.name AS menu_item_name, mi.category, mi.price, mi.available,
                        (ii.current_stock <= ii.min_stock_level) AS is_low_stock,
                        (ii.current_stock <= 0) AS is_out_of_stock
                 FROM inventory_items ii
                 JOIN menu_items mi ON mi.id = ii.menu_item_id
+                WHERE {$inventoryScope} AND {$menuScope}
                 ORDER BY mi.category, mi.name";
         $stmt = $this->pdo->query($sql);
         return $stmt->fetchAll();
@@ -89,11 +92,13 @@ class Inventory
      */
     public function getByMenuItemId(int $menuItemId): ?array
     {
+        $inventoryScope = \demo_data_scope_sql('ii');
+        $menuScope = \demo_data_scope_sql('mi');
         $stmt = $this->pdo->prepare(
             "SELECT ii.*, mi.name AS menu_item_name, mi.category, mi.price, mi.available
              FROM inventory_items ii
              JOIN menu_items mi ON mi.id = ii.menu_item_id
-             WHERE ii.menu_item_id = :menu_item_id
+             WHERE ii.menu_item_id = :menu_item_id AND {$inventoryScope} AND {$menuScope}
              LIMIT 1"
         );
         $stmt->execute([':menu_item_id' => $menuItemId]);
@@ -106,11 +111,13 @@ class Inventory
      */
     public function getById(int $id): ?array
     {
+        $inventoryScope = \demo_data_scope_sql('ii');
+        $menuScope = \demo_data_scope_sql('mi');
         $stmt = $this->pdo->prepare(
             "SELECT ii.*, mi.name AS menu_item_name, mi.category, mi.price, mi.available
              FROM inventory_items ii
              JOIN menu_items mi ON mi.id = ii.menu_item_id
-             WHERE ii.id = :id
+             WHERE ii.id = :id AND {$inventoryScope} AND {$menuScope}
              LIMIT 1"
         );
         $stmt->execute([':id' => $id]);
@@ -128,9 +135,10 @@ class Inventory
             $this->createInventoryRecord($menuItemId);
         }
 
+        $inventoryScope = \demo_data_scope_sql('inventory_items');
         $stmt = $this->pdo->prepare(
             "UPDATE inventory_items SET min_stock_level = :min_stock_level, updated_at = :updated_at
-             WHERE menu_item_id = :menu_item_id"
+             WHERE menu_item_id = :menu_item_id AND {$inventoryScope}"
         );
         $stmt->execute([
             ':min_stock_level' => max(0, $minStockLevel),
@@ -150,9 +158,10 @@ class Inventory
             $this->createInventoryRecord($menuItemId);
         }
 
+        $inventoryScope = \demo_data_scope_sql('inventory_items');
         $stmt = $this->pdo->prepare(
             "UPDATE inventory_items SET unit = :unit, updated_at = :updated_at
-             WHERE menu_item_id = :menu_item_id"
+             WHERE menu_item_id = :menu_item_id AND {$inventoryScope}"
         );
         $stmt->execute([
             ':unit' => $unit,
@@ -187,10 +196,17 @@ class Inventory
             throw new InvalidArgumentException('Reason is required for stock adjustment');
         }
 
+        if (!(new MenuItem($this->pdo))->getById($menuItemId)) {
+            throw new InvalidArgumentException('Menu item not found');
+        }
+
         $inv = $this->getByMenuItemId($menuItemId);
         if (!$inv) {
             $this->createInventoryRecord($menuItemId);
             $inv = $this->getByMenuItemId($menuItemId);
+        }
+        if (!$inv) {
+            throw new InvalidArgumentException('Inventory item not found');
         }
 
         $inventoryItemId = (int)$inv['id'];
@@ -202,9 +218,10 @@ class Inventory
         $this->pdo->beginTransaction();
         try {
             // Update stock
+            $inventoryScope = \demo_data_scope_sql('inventory_items');
             $updateStmt = $this->pdo->prepare(
                 "UPDATE inventory_items SET current_stock = :new_qty, updated_at = :updated_at
-                 WHERE id = :id"
+                 WHERE id = :id AND {$inventoryScope}"
             );
             $updateStmt->execute([
                 ':new_qty' => $newQty,
@@ -225,16 +242,17 @@ class Inventory
                 $performedBy
             );
 
-            // Auto-mark menu item as unavailable if stock reaches zero
+            // Chain menu availability is shared, so branch stock must not
+            // change it for every other branch.
             if ($newQty <= 0) {
                 $this->autoMarkUnavailable($menuItemId);
             } else {
                 // Re-enable if stock was zero and now has stock
-                $menuStmt = $this->pdo->prepare("SELECT available FROM menu_items WHERE id = :id");
+                $menuStmt = $this->pdo->prepare("SELECT available, chain_id FROM menu_items WHERE id = :id AND " . \demo_data_scope_sql('menu_items'));
                 $menuStmt->execute([':id' => $menuItemId]);
                 $menuItem = $menuStmt->fetch();
-                if ($menuItem && (int)$menuItem['available'] === 0) {
-                    $this->pdo->prepare("UPDATE menu_items SET available = 1 WHERE id = :id")
+                if ($menuItem && $menuItem['chain_id'] === null && (int)$menuItem['available'] === 0) {
+                    $this->pdo->prepare("UPDATE menu_items SET available = 1 WHERE id = :id AND " . \demo_data_scope_sql('menu_items'))
                         ->execute([':id' => $menuItemId]);
                 }
             }
@@ -269,11 +287,13 @@ class Inventory
         $deductions = [];
 
         // Get all order items for this completed order
+        $orderItemScope = \demo_data_scope_sql('oi');
+        $menuScope = \demo_data_scope_sql('mi');
         $stmt = $this->pdo->prepare(
             "SELECT oi.menu_item_id, oi.quantity, oi.id AS order_item_id, mi.name AS item_name
              FROM order_items oi
              JOIN menu_items mi ON mi.id = oi.menu_item_id
-             WHERE oi.order_id = :order_id"
+             WHERE oi.order_id = :order_id AND {$orderItemScope} AND {$menuScope}"
         );
         $stmt->execute([':order_id' => $orderId]);
         $items = $stmt->fetchAll();
@@ -306,7 +326,7 @@ class Inventory
      */
     private function autoMarkUnavailable(int $menuItemId): void
     {
-        $this->pdo->prepare("UPDATE menu_items SET available = 0 WHERE id = :id AND available = 1")
+        $this->pdo->prepare("UPDATE menu_items SET available = 0 WHERE id = :id AND available = 1 AND chain_id IS NULL AND " . \demo_data_scope_sql('menu_items'))
             ->execute([':id' => $menuItemId]);
     }
 
@@ -315,10 +335,13 @@ class Inventory
      */
     public function getLowStockItems(): array
     {
+        $inventoryScope = \demo_data_scope_sql('ii');
+        $menuScope = \demo_data_scope_sql('mi');
         $sql = "SELECT ii.*, mi.name AS menu_item_name, mi.category, mi.price, mi.available
                 FROM inventory_items ii
                 JOIN menu_items mi ON mi.id = ii.menu_item_id
                 WHERE ii.current_stock > 0 AND ii.current_stock <= ii.min_stock_level
+                  AND {$inventoryScope} AND {$menuScope}
                 ORDER BY (ii.min_stock_level - ii.current_stock) DESC";
         $stmt = $this->pdo->query($sql);
         return $stmt->fetchAll();
@@ -329,10 +352,12 @@ class Inventory
      */
     public function getOutOfStockItems(): array
     {
+        $inventoryScope = \demo_data_scope_sql('ii');
+        $menuScope = \demo_data_scope_sql('mi');
         $sql = "SELECT ii.*, mi.name AS menu_item_name, mi.category, mi.price, mi.available
                 FROM inventory_items ii
                 JOIN menu_items mi ON mi.id = ii.menu_item_id
-                WHERE ii.current_stock <= 0
+                WHERE ii.current_stock <= 0 AND {$inventoryScope} AND {$menuScope}
                 ORDER BY mi.category, mi.name";
         $stmt = $this->pdo->query($sql);
         return $stmt->fetchAll();
@@ -354,11 +379,13 @@ class Inventory
      */
     public function getMovementHistory(int $inventoryItemId, int $limit = 100): array
     {
+        $movementScope = \demo_data_scope_sql('im');
         $stmt = $this->pdo->prepare(
             "SELECT im.*, u.name AS performed_by_name
              FROM inventory_movements im
              LEFT JOIN users u ON u.id = im.performed_by
              WHERE im.inventory_item_id = :inventory_item_id
+               AND {$movementScope}
              ORDER BY im.created_at DESC
              LIMIT :limit"
         );
@@ -373,11 +400,15 @@ class Inventory
      */
     public function getRecentMovements(int $limit = 50): array
     {
+        $movementScope = \demo_data_scope_sql('im');
+        $inventoryScope = \demo_data_scope_sql('ii');
+        $menuScope = \demo_data_scope_sql('mi');
         $sql = "SELECT im.*, u.name AS performed_by_name, mi.name AS menu_item_name
                 FROM inventory_movements im
                 JOIN inventory_items ii ON ii.id = im.inventory_item_id
                 JOIN menu_items mi ON mi.id = ii.menu_item_id
                 LEFT JOIN users u ON u.id = im.performed_by
+                WHERE {$movementScope} AND {$inventoryScope} AND {$menuScope}
                 ORDER BY im.created_at DESC
                 LIMIT :limit";
         $stmt = $this->pdo->prepare($sql);
@@ -392,23 +423,15 @@ class Inventory
      */
     public function syncAvailabilityFromStock(): array
     {
-        $now = date('Y-m-d H:i:s');
+        $inventoryScope = \demo_data_scope_sql('ii');
+        $menuScope = \demo_data_scope_sql('m');
 
         // Mark as unavailable (available=0) when stock <= 0
-        $disableStmt = $this->pdo->prepare(
-            "UPDATE menu_items m
-             SET m.available = 0
-             WHERE m.id IN (
-                 SELECT ii.menu_item_id FROM inventory_items ii
-                 WHERE ii.current_stock <= 0 AND ii.menu_item_id = m.id
-             ) AND m.available = 1"
-        );
-        // Use a different approach for MySQL compatibility
         $disableStmt = $this->pdo->query(
             "UPDATE menu_items m
              JOIN inventory_items ii ON ii.menu_item_id = m.id
              SET m.available = 0
-             WHERE ii.current_stock <= 0 AND m.available = 1"
+             WHERE ii.current_stock <= 0 AND m.available = 1 AND m.chain_id IS NULL AND {$inventoryScope} AND {$menuScope}"
         );
         $disabled = $disableStmt->rowCount();
 
@@ -417,7 +440,7 @@ class Inventory
             "UPDATE menu_items m
              JOIN inventory_items ii ON ii.menu_item_id = m.id
              SET m.available = 1
-             WHERE ii.current_stock > 0 AND m.available = 0"
+             WHERE ii.current_stock > 0 AND m.available = 0 AND m.chain_id IS NULL AND {$inventoryScope} AND {$menuScope}"
         );
         $enabled = $enableStmt->rowCount();
 
@@ -433,12 +456,14 @@ class Inventory
     private function createInventoryRecord(int $menuItemId): void
     {
         $now = date('Y-m-d H:i:s');
+        $user = \get_auth_user() ?? [];
         $stmt = $this->pdo->prepare(
-            "INSERT IGNORE INTO inventory_items (menu_item_id, current_stock, min_stock_level, unit, created_at, updated_at)
-             VALUES (:menu_item_id, 0, 10, 'pieces', :created_at, :updated_at)"
+            "INSERT IGNORE INTO inventory_items (menu_item_id, current_stock, min_stock_level, unit, restaurant_id, created_at, updated_at)
+             VALUES (:menu_item_id, 0, 10, 'pieces', :restaurant_id, :created_at, :updated_at)"
         );
         $stmt->execute([
             ':menu_item_id' => $menuItemId,
+            ':restaurant_id' => $user['restaurant_id'] ?? null,
             ':created_at' => $now,
             ':updated_at' => $now,
         ]);
@@ -458,9 +483,10 @@ class Inventory
         string $reason,
         int $performedBy
     ): int {
+        $user = \get_auth_user() ?? [];
         $stmt = $this->pdo->prepare(
-            "INSERT INTO inventory_movements (inventory_item_id, type, quantity, previous_qty, new_qty, reference_type, reference_id, reason, performed_by, created_at)
-             VALUES (:inventory_item_id, :type, :quantity, :previous_qty, :new_qty, :reference_type, :reference_id, :reason, :performed_by, :created_at)"
+            "INSERT INTO inventory_movements (inventory_item_id, type, quantity, previous_qty, new_qty, reference_type, reference_id, reason, performed_by, restaurant_id, created_at)
+             VALUES (:inventory_item_id, :type, :quantity, :previous_qty, :new_qty, :reference_type, :reference_id, :reason, :performed_by, :restaurant_id, :created_at)"
         );
         $stmt->execute([
             ':inventory_item_id' => $inventoryItemId,
@@ -472,6 +498,7 @@ class Inventory
             ':reference_id' => $referenceId,
             ':reason' => $reason,
             ':performed_by' => $performedBy,
+            ':restaurant_id' => $user['restaurant_id'] ?? null,
             ':created_at' => date('Y-m-d H:i:s'),
         ]);
         return (int)$this->pdo->lastInsertId();
@@ -485,18 +512,20 @@ class Inventory
         $stats = [];
 
         // Total unique items tracked
-        $stmt = $this->pdo->query("SELECT COUNT(*) FROM inventory_items");
+        $inventoryScope = \demo_data_scope_sql('inventory_items');
+        $menuScope = \demo_data_scope_sql('mi');
+        $stmt = $this->pdo->query("SELECT COUNT(*) FROM inventory_items WHERE {$inventoryScope}");
         $stats['total_items'] = (int)$stmt->fetchColumn();
 
         // Items with low stock
         $stmt = $this->pdo->query(
-            "SELECT COUNT(*) FROM inventory_items WHERE current_stock > 0 AND current_stock <= min_stock_level"
+            "SELECT COUNT(*) FROM inventory_items WHERE current_stock > 0 AND current_stock <= min_stock_level AND {$inventoryScope}"
         );
         $stats['low_stock_count'] = (int)$stmt->fetchColumn();
 
         // Out of stock items
         $stmt = $this->pdo->query(
-            "SELECT COUNT(*) FROM inventory_items WHERE current_stock <= 0"
+            "SELECT COUNT(*) FROM inventory_items WHERE current_stock <= 0 AND {$inventoryScope}"
         );
         $stats['out_of_stock_count'] = (int)$stmt->fetchColumn();
 
@@ -504,11 +533,11 @@ class Inventory
         $stmt = $this->pdo->query(
             "SELECT COALESCE(SUM(ii.current_stock * mi.price), 0) AS total_stock_value
              FROM inventory_items ii
-             JOIN menu_items mi ON mi.id = ii.menu_item_id"
+             JOIN menu_items mi ON mi.id = ii.menu_item_id
+             WHERE {$inventoryScope} AND {$menuScope}"
         );
         $stats['total_stock_value'] = (float)$stmt->fetchColumn();
 
         return $stats;
     }
 }
-

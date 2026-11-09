@@ -1,24 +1,43 @@
 -- =============================================================================
 -- Brainyte Restaurant POS - Complete Database Schema
 -- =============================================================================
--- This file serves as the reference schema matching includes/db.example.php
--- and all migration files (001-004).
---
--- The canonical source of truth is the migration files in:
---   database/migrations/
---
--- db.example.php provides a dynamic "CREATE TABLE IF NOT EXISTS" approach
--- that is convenient for development but should NOT replace migrations in production.
+-- This file is the reference schema matching includes/db.example.php.
+-- The runtime schema initializer creates and upgrades application tables;
+-- the legacy SQL migration runner is intentionally not used by Setup.
 -- =============================================================================
 
 -- Users
+CREATE TABLE IF NOT EXISTS `restaurant_chains` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(150) NOT NULL,
+    `created_at` DATETIME NOT NULL,
+    `updated_at` DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `restaurants` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `chain_id` INT DEFAULT NULL,
+    `name` VARCHAR(150) NOT NULL,
+    `address` TEXT DEFAULT NULL,
+    `phone_number` VARCHAR(30) DEFAULT NULL,
+    `email` VARCHAR(120) DEFAULT NULL,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `archived_at` DATETIME DEFAULT NULL,
+    `created_at` DATETIME NOT NULL,
+    `updated_at` DATETIME NOT NULL,
+    INDEX `idx_restaurants_chain` (`chain_id`),
+    INDEX `idx_restaurants_active` (`is_active`, `archived_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `users` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `name` VARCHAR(80) NOT NULL,
     `email` VARCHAR(120) NOT NULL UNIQUE,
     `password_hash` VARCHAR(255) NOT NULL,
-    `role` ENUM('waiter', 'kitchen', 'bar', 'manager', 'supervisor', 'admin', 'owner', 'customer', 'rider') NOT NULL,
+    `role` ENUM('waiter', 'kitchen', 'bar', 'manager', 'supervisor', 'admin', 'owner', 'customer', 'rider', 'super_admin') NOT NULL,
+    `restaurant_id` INT DEFAULT NULL,
     `is_demo` TINYINT(1) NOT NULL DEFAULT 0,
+    `demo_owner_id` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     INDEX `idx_users_role` (`role`),
     INDEX `idx_users_email` (`email`)
@@ -29,6 +48,8 @@ CREATE TABLE IF NOT EXISTS `restaurant_tables` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `name` VARCHAR(50) NOT NULL,
     `status` ENUM('available', 'occupied', 'reserved', 'closed') NOT NULL DEFAULT 'available',
+    `restaurant_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     INDEX `idx_restaurant_tables_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -41,6 +62,9 @@ CREATE TABLE IF NOT EXISTS `menu_items` (
     `price` DECIMAL(9,2) NOT NULL,
     `category` ENUM('beer', 'malt', 'soft-drinks', 'water', 'energy-drinks', 'juice', 'spirits', 'ready-to-drink', 'rice', 'pepper-soup', 'grills', 'soups', 'swallow', 'extras', 'cigarettes') NOT NULL,
     `available` TINYINT(1) NOT NULL DEFAULT 1,
+    `restaurant_id` INT DEFAULT NULL,
+    `chain_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     INDEX `idx_menu_items_category` (`category`),
     INDEX `idx_menu_items_available` (`available`),
@@ -58,6 +82,8 @@ CREATE TABLE IF NOT EXISTS `orders` (
     `payment_status` ENUM('unpaid', 'partial', 'paid', 'refunded', 'voided') NOT NULL DEFAULT 'unpaid',
     `total_amount` DECIMAL(9,2) NOT NULL DEFAULT 0.00,
     `paid_amount` DECIMAL(9,2) NOT NULL DEFAULT 0.00,
+    `restaurant_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     `updated_at` DATETIME NOT NULL,
     INDEX `idx_orders_table_status` (`table_id`, `status`),
@@ -79,6 +105,8 @@ CREATE TABLE IF NOT EXISTS `order_items` (
     `instructions` TEXT DEFAULT NULL,
     `status` ENUM('pending', 'preparing', 'ready', 'served', 'completed') NOT NULL DEFAULT 'pending',
     `routed_to` ENUM('kitchen', 'bar') NOT NULL,
+    `restaurant_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     `updated_at` DATETIME DEFAULT NULL,
     INDEX `idx_order_items_order` (`order_id`),
@@ -98,6 +126,8 @@ CREATE TABLE IF NOT EXISTS `order_status_history` (
     `to_status` VARCHAR(20) NOT NULL,
     `changed_by_user_id` INT DEFAULT NULL,
     `notes` TEXT DEFAULT NULL,
+    `restaurant_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     INDEX `idx_osh_order_created` (`order_id`, `created_at`),
     INDEX `idx_osh_item_created` (`order_item_id`, `created_at`),
@@ -119,6 +149,8 @@ CREATE TABLE IF NOT EXISTS `notifications` (
     `reference_id` INT DEFAULT NULL,
     `is_read` TINYINT(1) NOT NULL DEFAULT 0,
     `sent_to_push` TINYINT(1) NOT NULL DEFAULT 0,
+    `restaurant_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     INDEX `idx_notifications_role_read_created` (`target_role`, `is_read`, `created_at`),
     INDEX `idx_notifications_user_read` (`target_user_id`, `is_read`),
@@ -156,6 +188,8 @@ CREATE TABLE IF NOT EXISTS `print_jobs` (
     `attempts` TINYINT UNSIGNED NOT NULL DEFAULT 0,
     `last_error` TEXT DEFAULT NULL,
     `printed_at` DATETIME DEFAULT NULL,
+    `restaurant_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     INDEX `idx_print_jobs_status` (`status`),
     INDEX `idx_print_jobs_order` (`order_id`),
@@ -182,6 +216,8 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
     `details` TEXT DEFAULT NULL,
     `ip_address` VARCHAR(45) DEFAULT NULL,
     `user_agent` VARCHAR(500) DEFAULT NULL,
+    `restaurant_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     INDEX `idx_audit_user` (`user_id`),
     INDEX `idx_audit_action` (`action`),
@@ -209,8 +245,11 @@ CREATE TABLE IF NOT EXISTS `inventory_items` (
     `current_stock` DECIMAL(9,2) NOT NULL DEFAULT 0.00,
     `min_stock_level` DECIMAL(9,2) NOT NULL DEFAULT 0.00,
     `unit` VARCHAR(30) NOT NULL DEFAULT 'pieces',
+    `restaurant_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     `updated_at` DATETIME NOT NULL,
+    UNIQUE KEY `uq_inventory_menu_restaurant` (`menu_item_id`, `restaurant_id`),
     INDEX `idx_inventory_menu_item` (`menu_item_id`),
     INDEX `idx_inventory_stock_level` (`current_stock`),
     INDEX `idx_inventory_min_stock` (`min_stock_level`),
@@ -229,6 +268,8 @@ CREATE TABLE IF NOT EXISTS `inventory_movements` (
     `reference_id` INT DEFAULT NULL,
     `reason` TEXT DEFAULT NULL,
     `performed_by` INT DEFAULT NULL,
+    `restaurant_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     INDEX `idx_im_inventory_item` (`inventory_item_id`),
     INDEX `idx_im_type` (`type`),
@@ -247,6 +288,8 @@ CREATE TABLE IF NOT EXISTS `suppliers` (
     `email` VARCHAR(120) DEFAULT NULL,
     `address` TEXT DEFAULT NULL,
     `notes` TEXT DEFAULT NULL,
+    `restaurant_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     `updated_at` DATETIME NOT NULL,
     INDEX `idx_suppliers_name` (`name`)
@@ -260,6 +303,8 @@ CREATE TABLE IF NOT EXISTS `supply_receipts` (
     `receipt_file_path` VARCHAR(500) DEFAULT NULL,
     `notes` TEXT DEFAULT NULL,
     `received_at` DATETIME NOT NULL,
+    `restaurant_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     INDEX `idx_supply_supplier_received` (`supplier_id`, `received_at`),
     CONSTRAINT `fk_supply_supplier` FOREIGN KEY (`supplier_id`) REFERENCES `suppliers`(`id`) ON DELETE RESTRICT,
@@ -272,6 +317,8 @@ CREATE TABLE IF NOT EXISTS `supply_receipt_items` (
     `inventory_item_id` INT NOT NULL,
     `quantity` DECIMAL(9,2) NOT NULL,
     `unit_cost` DECIMAL(9,2) DEFAULT NULL,
+    `restaurant_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     INDEX `idx_supply_receipt_item` (`supply_receipt_id`),
     CONSTRAINT `fk_supply_item_receipt` FOREIGN KEY (`supply_receipt_id`) REFERENCES `supply_receipts`(`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_supply_item_inventory` FOREIGN KEY (`inventory_item_id`) REFERENCES `inventory_items`(`id`) ON DELETE RESTRICT
@@ -284,6 +331,8 @@ CREATE TABLE IF NOT EXISTS `table_close_evidence` (
     `order_id` INT NOT NULL,
     `waiter_id` INT NOT NULL,
     `image_path` VARCHAR(500) NOT NULL,
+    `restaurant_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     INDEX `idx_tce_table_created` (`table_id`, `created_at`),
     CONSTRAINT `fk_tce_table` FOREIGN KEY (`table_id`) REFERENCES `restaurant_tables`(`id`) ON DELETE RESTRICT,
@@ -299,6 +348,8 @@ CREATE TABLE IF NOT EXISTS `order_cancellation_requests` (
     `status` ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
     `reviewed_by_user_id` INT DEFAULT NULL,
     `review_notes` TEXT DEFAULT NULL,
+    `restaurant_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     `reviewed_at` DATETIME DEFAULT NULL,
     UNIQUE KEY `uq_cancel_request_order_pending` (`order_id`, `status`),
@@ -367,6 +418,8 @@ CREATE TABLE IF NOT EXISTS `delivery_orders` (
     `longitude` DECIMAL(10,7) DEFAULT NULL,
     `status` ENUM('requested','accepted','preparing','out_for_delivery','delivered','cancelled') NOT NULL DEFAULT 'requested',
     `payment_method` ENUM('cash','pos','transfer','pending') NOT NULL DEFAULT 'pending',
+    `restaurant_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL,
     `updated_at` DATETIME NOT NULL,
     INDEX `idx_delivery_customer_created` (`customer_id`, `created_at`),
@@ -383,6 +436,8 @@ CREATE TABLE IF NOT EXISTS `delivery_tracking` (
     `latitude` DECIMAL(10,7) NOT NULL,
     `longitude` DECIMAL(10,7) NOT NULL,
     `accuracy_meters` DECIMAL(8,2) DEFAULT NULL,
+    `restaurant_id` INT DEFAULT NULL,
+    `demo_owner_id` INT DEFAULT NULL,
     `recorded_at` DATETIME NOT NULL,
     INDEX `idx_tracking_delivery_recorded` (`delivery_order_id`, `recorded_at`),
     CONSTRAINT `fk_tracking_delivery` FOREIGN KEY (`delivery_order_id`) REFERENCES `delivery_orders`(`id`) ON DELETE CASCADE,

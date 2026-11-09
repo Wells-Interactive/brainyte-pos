@@ -29,6 +29,9 @@ class Settings
         'printer_type',
         'footer_text',
         'demo_mode_enabled',
+        'delivery_base_price',
+        'delivery_per_km_rate',
+        'delivery_max_distance',
     ];
 
     public function __construct(PDO $pdo)
@@ -46,11 +49,7 @@ class Settings
         }
 
         try {
-            $stmt = $this->pdo->query('SELECT setting_key, setting_value FROM settings');
-            $rows = $stmt->fetchAll();
-            foreach ($rows as $row) {
-                $this->cache[$row['setting_key']] = $row['setting_value'];
-            }
+            $this->cache = \get_setting_values($this->pdo);
         } catch (\Throwable $e) {
             // Use defaults
         }
@@ -124,12 +123,13 @@ class Settings
         }
 
         $now = date('Y-m-d H:i:s');
+        $storageKey = \restaurant_setting_storage_key($key);
         $stmt = $this->pdo->prepare(
             'INSERT INTO settings (setting_key, setting_value, updated_at) 
              VALUES (:key, :value, :updated_at) 
              ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = VALUES(updated_at)'
         );
-        $stmt->execute([':key' => $key, ':value' => $value, ':updated_at' => $now]);
+        $stmt->execute([':key' => $storageKey, ':value' => $value, ':updated_at' => $now]);
 
         // Update cache
         $this->cache[$key] = $value;
@@ -148,6 +148,15 @@ class Settings
             case 'vat_rate':
                 $vat = (float)$value;
                 return ($vat >= 0 && $vat <= 100) ? null : 'VAT rate must be between 0 and 100';
+            case 'delivery_base_price':
+            case 'delivery_per_km_rate':
+            case 'delivery_max_distance':
+                if (!is_numeric($value) || (float)$value < 0) {
+                    return 'Must be a non-negative number';
+                }
+                return $key === 'delivery_max_distance' && (float)$value === 0
+                    ? 'Maximum delivery distance must be greater than zero'
+                    : null;
             case 'restaurant_name':
                 return mb_strlen($value) <= 100 ? null : 'Name too long (max 100)';
             case 'footer_text':

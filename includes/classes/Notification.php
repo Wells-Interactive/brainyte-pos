@@ -46,9 +46,10 @@ class Notification
         }
 
         $now = date('Y-m-d H:i:s');
+        $authUser = \get_auth_user() ?? [];
         $stmt = $this->pdo->prepare(
-            'INSERT INTO notifications (target_role, target_user_id, title, body, type, reference_type, reference_id, is_read, sent_to_push, created_at)
-             VALUES (:target_role, :target_user_id, :title, :body, :type, :reference_type, :reference_id, 0, 0, :created_at)'
+            'INSERT INTO notifications (target_role, target_user_id, title, body, type, reference_type, reference_id, is_read, sent_to_push, restaurant_id, created_at)
+             VALUES (:target_role, :target_user_id, :title, :body, :type, :reference_type, :reference_id, 0, 0, :restaurant_id, :created_at)'
         );
         $stmt->execute([
             ':target_role' => $targetRole,
@@ -58,6 +59,7 @@ class Notification
             ':type' => $type,
             ':reference_type' => $referenceType,
             ':reference_id' => $referenceId,
+            ':restaurant_id' => $authUser['restaurant_id'] ?? null,
             ':created_at' => $now,
         ]);
 
@@ -69,7 +71,7 @@ class Notification
      */
     public function getPending(?string $role = null, ?int $userId = null): array
     {
-        $sql = 'SELECT * FROM notifications WHERE is_read = 0';
+        $sql = 'SELECT * FROM notifications WHERE is_read = 0 AND ' . \demo_data_scope_sql('notifications');
         $params = [];
 
         if ($role !== null && $role !== 'all') {
@@ -93,7 +95,7 @@ class Notification
      */
     public function markRead(int $notificationId): void
     {
-        $stmt = $this->pdo->prepare('UPDATE notifications SET is_read = 1 WHERE id = :id');
+        $stmt = $this->pdo->prepare('UPDATE notifications SET is_read = 1 WHERE id = :id AND ' . \demo_data_scope_sql('notifications'));
         $stmt->execute([':id' => $notificationId]);
     }
 
@@ -102,7 +104,7 @@ class Notification
      */
     public function markAllRead(string $role, ?int $userId = null): int
     {
-        $sql = 'UPDATE notifications SET is_read = 1 WHERE is_read = 0 AND (target_role = :role OR target_role = \'all\')';
+        $sql = 'UPDATE notifications SET is_read = 1 WHERE is_read = 0 AND ' . \demo_data_scope_sql('notifications') . ' AND (target_role = :role OR target_role = \'all\')';
         $params = [':role' => $role];
 
         if ($userId !== null) {
@@ -121,7 +123,7 @@ class Notification
     public function deleteOlderThan(int $days = 30): int
     {
         $cutoff = date('Y-m-d H:i:s', strtotime("-{$days} days"));
-        $stmt = $this->pdo->prepare('DELETE FROM notifications WHERE created_at < :cutoff');
+        $stmt = $this->pdo->prepare('DELETE FROM notifications WHERE created_at < :cutoff AND ' . \demo_data_scope_sql('notifications'));
         $stmt->execute([':cutoff' => $cutoff]);
         return $stmt->rowCount();
     }
@@ -131,7 +133,7 @@ class Notification
      */
     public function getUnreadCount(string $role, ?int $userId = null): int
     {
-        $sql = 'SELECT COUNT(*) FROM notifications WHERE is_read = 0 AND (target_role = :role OR target_role = \'all\')';
+        $sql = 'SELECT COUNT(*) FROM notifications WHERE is_read = 0 AND ' . \demo_data_scope_sql('notifications') . ' AND (target_role = :role OR target_role = \'all\')';
         $params = [':role' => $role];
 
         if ($userId !== null) {

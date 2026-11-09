@@ -1,0 +1,10 @@
+<?php
+declare(strict_types=1);
+/** Multipart upload of a waiter photo after an order payment closes its table. */
+require_once __DIR__ . '/../../../includes/db.php';
+require_once __DIR__ . '/../../../includes/utils.php';
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') json_response(['error'=>'Method not allowed'],405);
+$auth=require_role(['waiter']);$orderId=(int)($_POST['order_id']??0);if($orderId<=0||empty($_FILES['image']))json_response(['error'=>'Order and image are required'],422);
+$file=$_FILES['image'];if($file['error']!==UPLOAD_ERR_OK||$file['size']>5*1024*1024)json_response(['error'=>'Use an image no larger than 5 MB'],422);$mime=(new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);$extensions=['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];if(!isset($extensions[$mime]))json_response(['error'=>'Only JPEG, PNG, or WebP images are allowed'],422);
+$pdo = get_db(); $q = $pdo->prepare("SELECT table_id FROM orders WHERE id=:id AND waiter_id=:waiter AND status='completed' AND payment_status='paid' AND " . demo_data_scope_sql('orders',$auth) . " LIMIT 1"); $q->execute([':id'=>$orderId,':waiter'=>$auth['id']]); $order=$q->fetch(); if(!$order)json_response(['error'=>'A paid, completed order belonging to you is required'],403);
+$dir=__DIR__.'/../../../uploads/table-close';if(!is_dir($dir)&&!mkdir($dir,0750,true))json_response(['error'=>'Unable to prepare upload storage'],500);$name=bin2hex(random_bytes(16)).'.'.$extensions[$mime];if(!move_uploaded_file($file['tmp_name'],$dir.'/'.$name))json_response(['error'=>'Unable to store image'],500);$path='/uploads/table-close/'.$name;$pdo->prepare('INSERT INTO table_close_evidence (table_id,order_id,waiter_id,image_path,demo_owner_id,restaurant_id,created_at) VALUES (:table,:order,:waiter,:path,NULL,:restaurant,:now)')->execute([':table'=>$order['table_id'],':order'=>$orderId,':waiter'=>$auth['id'],':path'=>$path,':restaurant'=>$auth['restaurant_id']??null,':now'=>date('Y-m-d H:i:s')]);json_response(['success'=>true,'data'=>['image_path'=>$path]],201);

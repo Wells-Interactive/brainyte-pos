@@ -73,6 +73,9 @@ class Permission
      *   owner > admin > manager > supervisor > waiter/kitchen/bar
      */
     private const ROLE_PERMISSIONS = [
+        'super_admin' => [
+            '*',
+        ],
         'owner' => [
             // Owners have access to EVERYTHING
             '*',
@@ -325,4 +328,3 @@ class Permission
         return in_array($permission, self::PERMISSIONS, true);
     }
 }
-
