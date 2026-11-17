@@ -224,8 +224,11 @@ function ensure_demo_dataset(PDO $pdo): int
                 ':created_at' => $now,
             ]);
             $ownerId = (int)$pdo->lastInsertId();
-            $pdo->prepare('UPDATE users SET demo_owner_id = :owner_id WHERE id = :owner_id')
-                ->execute([':owner_id' => $ownerId]);
+            $pdo->prepare('UPDATE users SET demo_owner_id = :owner_id_set WHERE id = :owner_id_where')
+                ->execute([
+                    ':owner_id_set' => $ownerId,
+                    ':owner_id_where' => $ownerId,
+                ]);
         }
 
         $staff = [];
