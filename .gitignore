@@ -1,6 +1,6 @@
 # Ignore only sensitive configuration
 includes/config.php
-
+SuperAdmin/
 
 # APIs'
 API/v1

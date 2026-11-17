@@ -4,7 +4,7 @@ require_once __DIR__ . '/includes/utils.php';
 session_start();
 
 if (!db_config_exists()) {
-    header('Location: /Setup/index.php');
+    header('Location: /brainytepos/Setup/index.php');
     exit;
 }
 
@@ -17,7 +17,7 @@ try {
     }
 
     if (!is_setup_complete($pdo)) {
-        header('Location: /Setup/index.php');
+        header('Location: /brainytepos/Setup/index.php');
         exit;
     }
 
